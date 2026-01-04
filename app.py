@@ -1,170 +1,127 @@
 import streamlit as st
 import pandas as pd
-import os
+from datetime import timedelta
 
-st.set_page_config(page_title="🎲 Pronósticos Lucky", layout="centered")
+st.set_page_config(page_title="Pronósticos Lucky", layout="centered")
 
-# ---------- LOGO ----------
-if os.path.exists("logolucky.jpg"):
-    st.image("logolucky.jpg", width=200)
-
-st.title("🎲 Pronósticos Lucky")
-st.subheader("Análisis estadístico del TRIS")
-
-# ---------- CARGA DE DATOS ----------
+# =========================
+# CARGA DE DATOS
+# =========================
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv("Tris.csv")
-
-    columnas = ["R1", "R2", "R3", "R4", "R5"]
-    for col in columnas:
-        if col not in df.columns:
-            st.error("El CSV no contiene las columnas R1 a R5")
-            st.stop()
-
-    # LIMPIEZA CLAVE (FIX DEFINITIVO)
-    for col in columnas:
-        df[col] = (
-            df[col]
-            .fillna(0)
-            .astype(int)
-            .astype(str)
-        )
-
-    df["numero"] = df["R1"] + df["R2"] + df["R3"] + df["R4"] + df["R5"]
-
+    df["FECHA"] = pd.to_datetime(df["FECHA"], dayfirst=True)
+    df["R5"] = df["R5"].astype(str).str.zfill(5)
     return df
 
 df = cargar_datos()
-st.success(f"Sorteos cargados correctamente: {len(df)}")
 
-# ---------- INPUT ----------
-st.markdown("### 🔍 Analizar número")
-numero_usuario = st.text_input("Ingresa el número", "").strip()
+st.title("🎲 Pronósticos Lucky")
+st.caption("Análisis estadístico del TRIS")
+st.success(f"Sorteos cargados: {len(df)}")
 
-if not numero_usuario.isdigit():
+# =========================
+# ENTRADA
+# =========================
+numero_usuario = st.text_input(
+    "🔍 Ingresa tu número (1 a 5 dígitos)",
+    max_chars=5
+).zfill(len(st.text_input("", "", key="hidden")))
+
+if not numero_usuario.strip():
     st.stop()
 
-# ---------- MODALIDADES ----------
-modalidades = {
-    "Par final": ("final", 2),
-    "Número final": ("final", 1),
-    "Par inicial": ("inicio", 2),
-    "Número inicial": ("inicio", 1),
-    "Directa 3": ("final", 3),
-    "Directa 4": ("final", 4),
-    "Directa 5": ("final", 5),
-}
+# =========================
+# FUNCIONES
+# =========================
+def estado_numero(conteo, promedio):
+    ratio = conteo / promedio if promedio > 0 else 0
+    if ratio >= 1.2:
+        return "🔥 Caliente (sale más que el promedio)"
+    elif ratio <= 0.8:
+        return "❄️ Frío (sale menos que el promedio)"
+    else:
+        return "⚪ Promedio (comportamiento normal)"
 
-st.markdown("### Selecciona la modalidad")
+def ultima_aparicion(valor, columna):
+    apar = df[df[columna] == valor]
+    if len(apar) == 0:
+        return "Sin historial"
+    ult = apar.iloc[0]
+    return f"{ult['FECHA'].strftime('%d/%m/%Y')} – Sorteo {ult['CONCURSO']}"
 
-modalidad = st.radio(
-    "",
-    list(modalidades.keys()),
-    index=0  # Par final por default
-)
+# =========================
+# ANALISIS PRINCIPAL
+# =========================
+st.subheader("📊 Análisis de tu número")
 
-tipo, digitos = modalidades[modalidad]
+col = f"R{len(numero_usuario)}"
+apariciones = df[df[col] == numero_usuario]
+promedio = len(df) / (10 ** len(numero_usuario))
 
-if len(numero_usuario) != digitos:
-    st.warning(f"Esta modalidad requiere exactamente {digitos} dígitos.")
-    st.stop()
+st.write(f"Apariciones: **{len(apariciones)}**")
+st.write(f"Estado: **{estado_numero(len(apariciones), promedio)}**")
+st.write(f"Última aparición: **{ultima_aparicion(numero_usuario, col)}**")
 
-# ---------- APUESTA ----------
-st.markdown("### 💰 Datos de la jugada")
-apuesta = st.number_input("Cantidad a jugar (pesos)", min_value=1, max_value=100, value=1)
+# =========================
+# DESCOMPOSICION AUTOMATICA
+# =========================
+st.subheader("🔍 Descomposición y análisis automático")
 
-usa_multi = st.radio("¿Jugar con multiplicador?", ["No", "Sí"])
-multi = 1
+def analizar(valor, etiqueta):
+    col = f"R{len(valor)}"
+    apar = df[df[col] == valor]
+    estado = estado_numero(len(apar), len(df) / (10 ** len(valor)))
+    ultima = ultima_aparicion(valor, col)
+    st.write(f"**{etiqueta} {valor}** → {estado} | {ultima}")
 
-if usa_multi == "Sí":
-    multi = st.number_input(
-        "Selecciona multiplicador",
-        min_value=1,
-        max_value=apuesta,
-        value=1
-    )
+n = numero_usuario
 
-if apuesta * multi > 100:
-    st.error("La apuesta total no puede exceder $100")
-    st.stop()
+if len(n) >= 5:
+    analizar(n[:4], "Directa 4")
+    analizar(n[1:], "Directa 4")
+if len(n) >= 4:
+    analizar(n[:3], "Directa 3")
+    analizar(n[-3:], "Directa 3")
+if len(n) >= 2:
+    analizar(n[:2], "Par inicial")
+    analizar(n[-2:], "Par final")
+analizar(n[0], "Número inicial")
+analizar(n[-1], "Número final")
 
-# ---------- COLUMNA DE ANÁLISIS ----------
-if tipo == "inicio":
-    df["analisis"] = df["numero"].str[:digitos]
-else:
-    df["analisis"] = df["numero"].str[-digitos:]
+# =========================
+# CALIENTES / FRIOS POR PERIODO
+# =========================
+st.subheader("🔥❄️ Top números por periodo")
 
-# ---------- ANÁLISIS ----------
-st.markdown("### 📊 Análisis estadístico")
+def top_periodo(dias, titulo):
+    fecha_limite = df["FECHA"].max() - timedelta(days=dias)
+    sub = df[df["FECHA"] >= fecha_limite]
+    conteo = sub["R2"].value_counts()
+    st.write(f"**{titulo}**")
+    st.write("🔥 Calientes:", ", ".join(conteo.head(5).index))
+    st.write("❄️ Fríos:", ", ".join(conteo.tail(5).index))
 
-conteo = df["analisis"].value_counts()
-apariciones = int(conteo.get(numero_usuario, 0))
+top_periodo(30, "Último mes")
+top_periodo(180, "Últimos 6 meses")
+top_periodo(365, "Último año")
 
-st.write(f"**Apariciones históricas:** {apariciones}")
-
-if apariciones > 0:
-    ultima = df[df["analisis"] == numero_usuario].index.max()
-    st.write(f"**Última aparición:** Sorteo #{ultima}")
-else:
-    st.write("**Última aparición:** Nunca ha salido")
-
-# ---------- CALIENTE / FRÍO ----------
-st.markdown("### 🔥❄️ Número caliente / frío")
-
-promedio = conteo.mean()
-
-if apariciones > promedio:
-    st.success("🔥 Número caliente")
-elif apariciones > 0:
-    st.info("⚪ Comportamiento promedio")
-else:
-    st.error("❄️ Número frío")
-
-# ---------- PERIODOS ----------
-st.markdown("### ⏳ Análisis por periodos")
-
-for p in [50, 100, 500]:
-    sub = df.tail(p)
-    ap = int((sub["analisis"] == numero_usuario).sum())
-    st.write(f"Últimos {p}: {ap} apariciones")
-
-# ---------- ESCALERA ----------
-st.markdown("### 🔢 Escalera")
+# =========================
+# ESCALERAS Y PIRÁMIDES
+# =========================
+st.subheader("🧠 Patrones recomendados")
 
 def es_escalera(n):
-    return len(n) >= 3 and all(int(n[i])+1 == int(n[i+1]) for i in range(len(n)-1))
+    return abs(int(n[0]) - int(n[1])) == 1
 
-st.success("✔ Es escalera") if es_escalera(numero_usuario) else st.info("No es escalera")
+def es_piramide(n):
+    return n[0] == n[1]
 
-# ---------- PIRÁMIDE ----------
-st.markdown("### 🔺 Pirámide")
+esc = df[df["R2"].apply(es_escalera)]
+pir = df[df["R2"].apply(es_piramide)]
 
-st.success("✔ Es pirámide") if len(set(numero_usuario)) == 1 else st.info("No es pirámide")
+st.write(f"🔢 Escaleras: {len(esc)} | Última: {esc.iloc[0]['FECHA'].strftime('%d/%m/%Y')}")
+st.write(f"🔺 Pirámides: {len(pir)} | Última: {pir.iloc[0]['FECHA'].strftime('%d/%m/%Y')}")
 
-# ---------- COMPARACIONES ----------
-st.markdown("### 🔄 Comparaciones avanzadas")
-
-n = int(numero_usuario)
-similares = [str(n+i).zfill(digitos) for i in [-2, -1, 1, 2]]
-st.write("Números cercanos:", ", ".join(similares))
-
-# ---------- GANANCIA ----------
-st.markdown("### 💵 Ganancia máxima posible")
-
-pagos = {
-    "Número inicial": 7,
-    "Número final": 7,
-    "Par inicial": 50,
-    "Par final": 50,
-    "Directa 3": 500,
-    "Directa 4": 5000,
-    "Directa 5": 50000,
-}
-
-ganancia = apuesta * multi * pagos[modalidad]
-st.success(f"Ganancia máxima posible: ${ganancia:,.2f}")
-
-# ---------- FOOTER ----------
-st.caption("Análisis basado en comportamiento histórico del TRIS.")
 st.caption("Pronósticos Lucky 🍀")
+st.caption("Análisis basado únicamente en resultados históricos")
