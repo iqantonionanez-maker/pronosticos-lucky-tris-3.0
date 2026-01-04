@@ -11,33 +11,35 @@ st.set_page_config(
 )
 
 # =========================
-# ESTILOS VISUALES
+# ESTILOS VISUALES (CASINO / SUERTE)
 # =========================
 st.markdown("""
 <style>
 body {
-    background-color: #f4f6fb;
+    background: radial-gradient(circle at top, #1e1b3a, #0f1025);
+    color: #ffffff;
 }
 
 .card {
-    background: linear-gradient(135deg, #ffffff, #f9f9ff);
+    background: linear-gradient(135deg, #ffffff, #f3f3ff);
     padding: 20px;
-    border-radius: 16px;
-    box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+    border-radius: 18px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.25);
     margin-bottom: 20px;
 }
 
 .title {
-    font-size: 38px;
+    font-size: 40px;
     font-weight: bold;
     text-align: center;
-    color: #2c3e50;
+    color: #ffd700;
+    text-shadow: 0 0 10px rgba(255,215,0,0.6);
 }
 
 .subtitle {
     text-align: center;
     font-size: 16px;
-    color: #555;
+    color: #dddddd;
 }
 
 .big-number {
@@ -46,22 +48,20 @@ body {
     color: #27ae60;
 }
 
-.section {
-    margin-top: 25px;
-}
-
 .footer {
     text-align: center;
     font-size: 14px;
-    color: #777;
-    margin-top: 30px;
+    color: #cccccc;
+    margin-top: 40px;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # =========================
-# ENCABEZADO
+# ENCABEZADO CON LOGO
 # =========================
+st.image("logolucky.jpg", width=240)
+
 st.markdown("""
 <div class="title">🎲 Pronósticos Lucky 🍀</div>
 <div class="subtitle">
@@ -113,11 +113,12 @@ if numero_usuario:
     longitud = len(numero_usuario)
 
     # =========================
-    # FORMA DETECTADA
+    # FORMA DE JUEGO
     # =========================
     if longitud >= 3:
         forma_manual = f"Directa {longitud}"
         st.success(f"🎯 Forma detectada automáticamente: {forma_manual}")
+        st.caption("En Directa 3 y 4 se consideran los últimos dígitos del número ganador.")
     else:
         forma_manual = st.selectbox(
             "¿Cómo deseas jugar este número?",
@@ -150,7 +151,7 @@ if numero_usuario:
         )
 
     # =========================
-    # FILTRO DE RESULTADOS
+    # FILTRO SEGÚN FORMA
     # =========================
     if longitud >= 3:
         filtro = df["NUMERO"].str.endswith(numero_usuario)
@@ -170,7 +171,7 @@ if numero_usuario:
     ultima_fecha = df.loc[filtro, "FECHA"].max()
 
     # =========================
-    # TARJETAS DE RESULTADOS
+    # RESULTADOS
     # =========================
     st.markdown("## 📊 Resultados")
 
@@ -191,11 +192,11 @@ if numero_usuario:
     """, unsafe_allow_html=True)
 
     # =========================
-    # SEMÁFORO HISTÓRICO
+    # SEMÁFORO ESTADÍSTICO
     # =========================
-    promedio = len(df) / 100
-
     st.markdown("## 🚦 Semáforo estadístico")
+
+    promedio = len(df) / 100
 
     if total_apariciones < promedio * 0.5:
         st.error("🔴 Frecuencia baja — Ha salido muy pocas veces.")
@@ -205,9 +206,9 @@ if numero_usuario:
         st.success("🟢 Frecuencia alta — Número activo.")
 
     st.caption("""
-    🔴 Bajo: pocas apariciones  
-    🟡 Medio: comportamiento regular  
-    🟢 Alto: alta presencia histórica
+    🔴 Bajo: pocas apariciones históricas  
+    🟡 Medio: comportamiento normal  
+    🟢 Alto: alta presencia en sorteos
     """)
 
     # =========================
@@ -234,7 +235,7 @@ if numero_usuario:
 # =========================
 st.markdown("""
 <div class="footer">
-🎲 Este análisis se basa en comportamiento estadístico histórico.<br>
+🎲 Este análisis se basa únicamente en comportamiento estadístico histórico.<br>
 🧙‍♂️🍀 <b>Pronósticos Lucky te desea buena suerte</b> 🍀💰
 </div>
 """, unsafe_allow_html=True)
