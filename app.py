@@ -1,76 +1,48 @@
 import streamlit as st
 import pandas as pd
+from datetime import timedelta
 
 # =====================================================
 # CONFIGURACIÓN GENERAL
 # =====================================================
-st.set_page_config(
-    page_title="Pronósticos Lucky TRIS",
-    layout="wide"
-)
+st.set_page_config("Pronósticos Lucky TRIS", layout="wide")
 
 st.markdown("""
 <style>
-body {
-    background-color: #0f0f1a;
+body { background-color:#0b0f1a; }
+h1,h2,h3 { color:#f5c77a; }
+.card {
+    background:#141a2e;
+    padding:15px;
+    border-radius:12px;
+    margin-bottom:12px;
 }
-.block-container {
-    padding: 2rem;
-}
-h1, h2, h3, h4 {
-    color: #f5c77a;
-}
-p, span, li {
-    color: #e6e6e6;
-}
-.stTextInput input, .stNumberInput input {
-    background-color: #1b1b2f;
-    color: white;
-}
+.ok { color:#2ecc71; font-weight:bold; }
+.warn { color:#f1c40f; font-weight:bold; }
+.danger { color:#e74c3c; font-weight:bold; }
+.info { color:#5dade2; }
 </style>
 """, unsafe_allow_html=True)
 
 # =====================================================
-# CARGA DE DATOS (100% COMPATIBLE CON CSV TRIS REAL)
+# CARGA DE DATOS
 # =====================================================
 @st.cache_data
-def cargar_datos():
+def cargar():
     df = pd.read_csv("Tris.csv")
     df.columns = df.columns.str.upper().str.strip()
 
-    # Fecha segura
-    df["FECHA"] = pd.to_datetime(
-        df["FECHA"],
-        dayfirst=True,
-        errors="coerce"
-    )
+    df["FECHA"] = pd.to_datetime(df["FECHA"], dayfirst=True, errors="coerce")
     df = df.dropna(subset=["FECHA"])
+    df = df.rename(columns={"CONCURSO": "SORTEO"})
 
-    # Renombrar sorteo
-    if "CONCURSO" in df.columns:
-        df = df.rename(columns={"CONCURSO": "SORTEO"})
-    else:
-        st.error("❌ El archivo no tiene la columna CONCURSO")
-        st.stop()
+    for c in ["R1","R2","R3","R4","R5"]:
+        df[c] = df[c].fillna("0").astype(str).str.replace(".0","", regex=False)
 
-    # Limpiar dígitos R1–R5 (pueden venir con NaN)
-    for col in ["R1", "R2", "R3", "R4", "R5"]:
-        if col not in df.columns:
-            st.error(f"❌ Falta la columna {col} en el CSV")
-            st.stop()
+    df["NUMERO"] = df["R1"]+df["R2"]+df["R3"]+df["R4"]+df["R5"]
 
-        df[col] = (
-            df[col]
-            .fillna(0)
-            .astype(str)
-            .str.replace(".0", "", regex=False)
-            .str.zfill(1)
-        )
-
-    # Construir número TRIS real
-    df["NUMERO"] = df["R1"] + df["R2"] + df["R3"] + df["R4"] + df["R5"]
-
-    # Derivados de juego
+    df["NUM_FINAL"] = df["NUMERO"].str[-1]
+    df["NUM_INICIAL"] = df["NUMERO"].str[0]
     df["PAR_FINAL"] = df["NUMERO"].str[-2:]
     df["PAR_INICIAL"] = df["NUMERO"].str[:2]
     df["D3"] = df["NUMERO"].str[-3:]
@@ -79,38 +51,41 @@ def cargar_datos():
 
     return df.sort_values("SORTEO")
 
-df = cargar_datos()
+df = cargar()
 
 # =====================================================
-# PREMIOS OFICIALES TRIS
+# PREMIOS OFICIALES POR MODALIDAD
 # =====================================================
-PREMIOS = {
-    "PAR": 50,
-    "D3": 500,
-    "D4": 5000,
-    "D5": 50000
+PREMIOS_BASE = {
+    "NUM": 5,      # Número final/inicial
+    "PAR": 50,     # Par final/inicial
+    "D3": 500,     # Directa 3
+    "D4": 5000,    # Directa 4
+    "D5": 50000    # Directa 5
 }
-MULTIPLICADOR = 4
+
+MULTIPLICADOR_MAX = 4  # máximo multiplicador oficial
 
 # =====================================================
-# FUNCIONES
+# FUNCIONES ESTADÍSTICAS
 # =====================================================
-def estadistica(col, valor):
-    data = df[df[col] == valor]
-    if data.empty:
+def stats(col, val):
+    d = df[df[col] == val]
+    if d.empty:
         return None
 
-    ultimo = data.iloc[-1]
-    promedio = data["SORTEO"].diff().mean()
-    sin_salir = df["SORTEO"].max() - ultimo["SORTEO"]
+    ultimo = d.iloc[-1]["SORTEO"]
+    sin = df["SORTEO"].max() - ultimo
+    prom = d["SORTEO"].diff().mean()
 
-    return {
-        "apariciones": len(data),
-        "fecha": ultimo["FECHA"].strftime("%d/%m/%Y"),
-        "ultimo_sorteo": int(ultimo["SORTEO"]),
-        "promedio": int(promedio) if not pd.isna(promedio) else None,
-        "sin_salir": int(sin_salir)
-    }
+    ult_ano = df[df["FECHA"] >= df["FECHA"].max() - timedelta(days=365)]
+    d_ano = ult_ano[ult_ano[col] == val]
+    prom_ano = d_ano["SORTEO"].diff().mean()
+
+    ult_100 = df.tail(100)
+    veces_100 = (ult_100[col] == val).sum()
+
+    return sin, prom, prom_ano, veces_100
 
 def top_modalidad(col):
     conteo = df[col].value_counts()
@@ -124,70 +99,111 @@ def top_modalidad(col):
 # INTERFAZ
 # =====================================================
 st.title("🎲 Pronósticos Lucky")
-st.caption("Análisis estadístico del TRIS basado en historial real")
-st.success(f"Sorteos cargados correctamente: {len(df)}")
 
-numero = st.text_input("🔍 Ingresa tu número (1 a 5 dígitos)").strip()
-apuesta = st.number_input("💰 Monto a apostar ($)", min_value=1, max_value=500, value=10)
-usar_multiplicador = st.checkbox("Usar Tris Multiplicador")
+col1, col2 = st.columns(2)
+
+with col1:
+    tipo = st.selectbox(
+        "🎯 Tipo de jugada",
+        [
+            "Número final",
+            "Número inicial",
+            "Par final",
+            "Par inicial",
+            "Directa 3",
+            "Directa 4",
+            "Directa 5"
+        ]
+    )
+
+with col2:
+    num = st.text_input("🔍 Ingresa tu número")
+
+apuesta = st.number_input("💰 Monto a apostar ($)", min_value=1, value=1)
+use_mult = st.checkbox("Activar Tris Multiplicador")
 
 # =====================================================
-# ANÁLISIS
+# MAPEO DE COLUMNAS
 # =====================================================
-if numero.isdigit() and 1 <= len(numero) <= 5:
-    numero = numero.zfill(5)
+mapa = {
+    "Número final": ("NUM_FINAL", "NUM"),
+    "Número inicial": ("NUM_INICIAL", "NUM"),
+    "Par final": ("PAR_FINAL", "PAR"),
+    "Par inicial": ("PAR_INICIAL", "PAR"),
+    "Directa 3": ("D3", "D3"),
+    "Directa 4": ("D4", "D4"),
+    "Directa 5": ("D5", "D5")
+}
 
-    st.header("📊 Análisis de tu número")
+if num.isdigit() and tipo in mapa:
+    col_db, key_premio = mapa[tipo]
+    req_len = int(col_db.replace("D","")) if col_db.startswith("D") else (1 if "NUM" in col_db else 2)
 
-    est = estadistica("D5", numero)
-    if not est:
-        st.warning(f"El número {numero} no tiene apariciones históricas.")
+    if len(num) != req_len:
+        st.error(f"❌ {tipo} requiere exactamente {req_len} dígito(s).")
+        st.stop()
+
+    st.header(f"📊 Análisis – {tipo} {num}")
+
+    r = stats(col_db, num)
+    if not r:
+        st.warning("Sin historial para esta jugada.")
     else:
-        st.success(
-            f"La última vez que salió fue en el sorteo {est['ultimo_sorteo']} "
-            f"el día {est['fecha']}"
-        )
-        st.write(f"Apariciones totales: {est['apariciones']}")
-        st.write(f"Promedio entre apariciones: {est['promedio']} sorteos")
-        st.write(f"Sorteos sin salir: {est['sin_salir']}")
+        sin, prom, prom_ano, v100 = r
+        st.markdown(f"""
+<div class="card">
+🔎 Veces en últimos 100 sorteos: {v100}<br>
+⏱ Promedio histórico: {int(prom) if prom==prom else '-'} sorteos<br>
+📅 Promedio último año: {int(prom_ano) if prom_ano==prom_ano else '-'} sorteos<br>
+⚠️ Sorteos sin salir: {sin}
+</div>
+""", unsafe_allow_html=True)
 
-    st.header("🔍 Recomendaciones relacionadas")
+    # =====================================================
+    # CÁLCULO DE PREMIO
+    # =====================================================
+    st.header("💰 Premio estimado")
 
-    for nombre, col, val in [
-        ("Par Final", "PAR_FINAL", numero[-2:]),
-        ("Par Inicial", "PAR_INICIAL", numero[:2]),
-        ("Directa 3", "D3", numero[-3:]),
-        ("Directa 4", "D4", numero[-4:])
-    ]:
-        e = estadistica(col, val)
-        if e:
-            st.write(
-                f"{nombre} {val} → {e['sin_salir']} sorteos sin salir | "
-                f"Última vez: {e['fecha']}"
-            )
-        else:
-            st.write(f"{nombre} {val} → Sin historial")
+    base = PREMIOS_BASE[key_premio] * apuesta
+    con_mult = base * MULTIPLICADOR_MAX if use_mult else None
 
-    st.header("🔥❄️ Tops")
-    for titulo, col in [
-        ("Par Final", "PAR_FINAL"),
-        ("Directa 3", "D3"),
-        ("Directa 4", "D4"),
-        ("Directa 5", "D5")
-    ]:
-        calientes, frios = top_modalidad(col)
-        st.subheader(titulo)
-        st.write("🔥 Calientes:", ", ".join(calientes.index))
-        st.write("❄️ Fríos:", ", ".join(frios.index))
+    st.markdown(f"""
+<div class="card">
+🏆 **Premio base (sin multiplicador):** ${base:,}<br>
+{"🔁 **Premio con multiplicador máximo:** $" + str(con_mult) + "<br>" if use_mult else ""}
+Notas: Premios según reglas oficiales del TRIS.
+</div>
+""", unsafe_allow_html=True)
 
+    # =====================================================
+    # RECOMENDACIÓN LUCKY
+    # =====================================================
     st.header("🍀 Recomendación Lucky")
 
-    mult = MULTIPLICADOR if usar_multiplicador else 1
-    st.write(f"🟢 Conservadora: Par Final {numero[-2:]} → ${PREMIOS['PAR'] * apuesta * mult:,}")
-    st.write(f"🟡 Intermedia: Directa 3 {numero[-3:]} → ${PREMIOS['D3'] * apuesta * mult:,}")
-    st.write(f"🔴 Agresiva: Directa 5 {numero} → ${PREMIOS['D5'] * apuesta * mult:,}")
+    st.markdown(f"""
+<div class="card">
+🟢 <b>Conservadora</b><br>
+{tipo} {num}<br>
+Premio base: ${base:,}<br>
+Motivo: combinación de historial y frecuencia estable.
+</div>
 
-    st.caption("Pronósticos Lucky 🍀 — análisis estadístico, no garantía de premio.")
+<div class="card">
+🟡 <b>Intermedia</b><br>
+Directa 3 {num[-3:].zfill(3)}<br>
+Premio base: ${PREMIOS_BASE['D3']*apuesta:,}<br>
+Motivo: opción equilibrada entre riesgo y premio.
+</div>
+
+<div class="card">
+🔴 <b>Agresiva</b><br>
+Directa 5 {num.zfill(5)}<br>
+Premio base: ${PREMIOS_BASE['D5']*apuesta:,}<br>
+Motivo: mayor premio posible, pero más riesgo.
+</div>
+""", unsafe_allow_html=True)
+
+    st.caption("Pronósticos Lucky 🍀 — análisis estadístico, no garantiza premio.")
 
 else:
-    st.info("Ingresa un número válido para comenzar.")
+    st.info("Ingresa un número y tipo de jugada válido para comenzar.")
