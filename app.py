@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 
-# ---------------- CONFIGURACIÓN ----------------
+# ---------------- CONFIG ----------------
 st.set_page_config(page_title="🎲 Pronósticos Lucky", layout="centered")
 
 # ---------------- LOGO ----------------
@@ -12,12 +12,11 @@ if os.path.exists("logolucky.jpg"):
 st.title("🎲 Pronósticos Lucky")
 st.subheader("Análisis estadístico del TRIS")
 
-# ---------------- CARGA DE DATOS ----------------
+# ---------------- DATA ----------------
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv("Tris.csv")
 
-    # Detectar columna correcta
     posibles = ["R5", "numero", "Número", "RESULTADO"]
     col = None
     for c in posibles:
@@ -26,7 +25,7 @@ def cargar_datos():
             break
 
     if col is None:
-        st.error("No se encontró la columna de resultados en el CSV")
+        st.error("No se encontró la columna de resultados")
         st.stop()
 
     df["numero"] = df[col].astype(str).str.replace(".0", "", regex=False).str.zfill(5)
@@ -35,30 +34,28 @@ def cargar_datos():
 df = cargar_datos()
 st.success(f"Sorteos cargados correctamente: {len(df)}")
 
-# ---------------- INPUT USUARIO ----------------
+# ---------------- INPUT ----------------
 st.markdown("### 🔍 Analizar número")
-numero_usuario = st.text_input("Ingresa el número que deseas analizar", "")
+numero_usuario = st.text_input("Ingresa el número", "").strip()
 
 if not numero_usuario.isdigit():
     st.stop()
 
 # ---------------- MODALIDADES ----------------
 modalidades = {
-    "Par final": 2,
-    "Número final": 1,
-    "Directa 3": 3,
-    "Directa 4": 4,
-    "Directa 5": 5
+    "Número inicial": ("inicio", 1),
+    "Par inicial": ("inicio", 2),
+    "Número final": ("final", 1),
+    "Par final": ("final", 2),
+    "Directa 3": ("final", 3),
+    "Directa 4": ("final", 4),
+    "Directa 5": ("final", 5),
 }
 
 st.markdown("### Selecciona la modalidad")
-modalidad = st.radio(
-    "",
-    list(modalidades.keys()),
-    index=0
-)
+modalidad = st.radio("", list(modalidades.keys()), index=3)
 
-digitos_req = modalidades[modalidad]
+tipo, digitos_req = modalidades[modalidad]
 
 if len(numero_usuario) != digitos_req:
     st.warning(f"Esta modalidad requiere exactamente {digitos_req} dígitos.")
@@ -83,64 +80,66 @@ if apuesta * multi > 100:
     st.error("La apuesta total no puede exceder $100")
     st.stop()
 
-# ---------------- FILTRO ----------------
-def filtrar(df, num, modalidad):
-    if modalidad == "Par final":
-        return df[df["numero"].str[-2:] == num]
-    if modalidad == "Número final":
-        return df[df["numero"].str[-1:] == num]
-    if modalidad == "Directa 3":
-        return df[df["numero"].str[-3:] == num]
-    if modalidad == "Directa 4":
-        return df[df["numero"].str[-4:] == num]
-    return df[df["numero"] == num]
+# ---------------- FILTRO CENTRAL ----------------
+def filtrar(df, num, tipo, dig):
+    if tipo == "inicio":
+        return df[df["numero"].str[:dig] == num]
+    else:
+        return df[df["numero"].str[-dig:] == num]
 
-df_match = filtrar(df, numero_usuario, modalidad)
+df_match = filtrar(df, numero_usuario, tipo, digitos_req)
 
-# ---------------- RESULTADOS ----------------
-st.markdown("### 📊 Análisis básico")
+# ---------------- ANALISIS ----------------
+st.markdown("### 📊 Análisis estadístico")
+
 apariciones = len(df_match)
-
 st.write(f"**Apariciones históricas:** {apariciones}")
 
 if apariciones > 0:
-    ultima = df_match.index.max()
-    st.write(f"**Última aparición:** Sorteo #{ultima}")
+    ultima_pos = df_match.index.max()
+    st.write(f"**Última aparición:** Sorteo #{ultima_pos}")
 else:
     st.write("**Última aparición:** Nunca ha salido")
 
-# ---------------- CALIENTE / FRÍO ----------------
-conteo = df["numero"].value_counts()
+# ---------------- CALIENTE / FRIO ----------------
+st.markdown("### 🔥❄️ Número caliente / frío")
+
+conteo = (
+    df["numero"]
+    .apply(lambda x: x[:digitos_req] if tipo == "inicio" else x[-digitos_req:])
+    .value_counts()
+)
+
 promedio = conteo.mean()
 
-st.markdown("### 🔥❄️ Indicador histórico")
-
-if apariciones > promedio:
-    st.success("🔥 Número caliente")
-elif apariciones < promedio:
-    st.error("❄️ Número frío")
+if numero_usuario in conteo:
+    if conteo[numero_usuario] > promedio:
+        st.success("🔥 Número caliente")
+    elif conteo[numero_usuario] < promedio:
+        st.error("❄️ Número frío")
+    else:
+        st.info("⚪ Comportamiento promedio")
 else:
-    st.info("⚪ Comportamiento promedio")
+    st.warning("Número sin historial")
 
 # ---------------- PERIODOS ----------------
 st.markdown("### ⏳ Análisis por periodos")
 
 for p in [50, 100, 500]:
     sub = df.tail(p)
-    ap = len(filtrar(sub, numero_usuario, modalidad))
+    ap = len(filtrar(sub, numero_usuario, tipo, digitos_req))
     st.write(f"Últimos {p}: {ap} apariciones")
 
 # ---------------- ESCALERA ----------------
 st.markdown("### 🔢 Escalera")
 
 def es_escalera(num):
-    return all(int(num[i])+1 == int(num[i+1]) for i in range(len(num)-1))
+    return len(num) >= 3 and all(int(num[i]) + 1 == int(num[i+1]) for i in range(len(num)-1))
 
-if len(numero_usuario) >= 3:
-    if es_escalera(numero_usuario):
-        st.success("✔ Es una escalera")
-    else:
-        st.info("No es escalera")
+if es_escalera(numero_usuario):
+    st.success("✔ Es una escalera")
+else:
+    st.info("No es escalera")
 
 # ---------------- PIRÁMIDE ----------------
 st.markdown("### 🔺 Pirámide")
@@ -157,19 +156,21 @@ else:
 st.markdown("### 🔄 Comparaciones avanzadas")
 
 num_int = int(numero_usuario)
-comparaciones = []
+similares = []
 
 for i in range(1, 3):
-    comparaciones.append(str(num_int - i).zfill(digitos_req))
-    comparaciones.append(str(num_int + i).zfill(digitos_req))
+    similares.append(str(num_int - i).zfill(digitos_req))
+    similares.append(str(num_int + i).zfill(digitos_req))
 
-st.write("Similares:", ", ".join(comparaciones))
+st.write("Números cercanos:", ", ".join(similares))
 
 # ---------------- GANANCIA ----------------
 st.markdown("### 💵 Ganancia máxima posible")
 
 tabla_pagos = {
+    "Número inicial": 7,
     "Número final": 7,
+    "Par inicial": 50,
     "Par final": 50,
     "Directa 3": 500,
     "Directa 4": 5000,
@@ -180,5 +181,5 @@ ganancia = apuesta * multi * tabla_pagos[modalidad]
 st.success(f"Ganancia máxima posible: ${ganancia:,.2f}")
 
 # ---------------- FOOTER ----------------
-st.caption("Este análisis se basa en comportamiento estadístico histórico.")
-st.caption("Pronósticos Lucky te desea buena suerte 🍀")
+st.caption("Análisis basado en comportamiento histórico del TRIS.")
+st.caption("Pronósticos Lucky 🍀")
