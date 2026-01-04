@@ -12,13 +12,13 @@ def cargar_datos():
     df = pd.read_csv("Tris.csv")
     df["FECHA"] = pd.to_datetime(df["FECHA"], dayfirst=True)
 
-    # reconstruimos el número completo
+    # Reconstruir número completo
     df["NUMERO"] = (
         df["R1"].astype(str)
         + df["R2"].astype(str)
         + df["R3"].astype(str)
         + df["R4"].astype(str)
-        + df["R5"].astype(int).astype(str)
+        + df["R5"].astype(str)
     )
 
     return df.sort_values("FECHA", ascending=False)
@@ -76,7 +76,10 @@ def analizar(valor, tipo):
         apar = df[df["NUMERO"] == valor]
         total = 100000
     elif largo == 4:
-        apar = df[df["NUMERO"].str.endswith(valor) | df["NUMERO"].str.startswith(valor)]
+        apar = df[
+            df["NUMERO"].str.startswith(valor) |
+            df["NUMERO"].str.endswith(valor)
+        ]
         total = 10000
     elif largo == 3:
         apar = df[df["NUMERO"].str.contains(valor)]
@@ -97,11 +100,10 @@ def analizar(valor, tipo):
 # ANALISIS PRINCIPAL
 # =========================
 st.subheader("📊 Análisis de tu número")
-
 analizar(numero_usuario, "Número ingresado")
 
 # =========================
-# DESCOMPOSICION AUTOMATICA
+# DESCOMPOSICIÓN AUTOMÁTICA
 # =========================
 st.subheader("🔍 Opciones de juego con este número")
 
@@ -123,4 +125,56 @@ elif len(n) == 4:
     analizar(n[:2], "Par inicial")
     analizar(n[-2:], "Par final")
     analizar(n[0], "Número inicial")
-    analizar(n[-1], "Número final"
+    analizar(n[-1], "Número final")
+
+elif len(n) == 3:
+    analizar(n[:2], "Par inicial")
+    analizar(n[-2:], "Par final")
+    analizar(n[0], "Número inicial")
+    analizar(n[-1], "Número final")
+
+elif len(n) == 2:
+    analizar(n[0], "Número inicial")
+    analizar(n[1], "Número final")
+
+# =========================
+# TOP CALIENTES / FRÍOS
+# =========================
+st.subheader("🔥❄️ Números calientes y fríos por periodo")
+
+def top_periodo(dias, titulo):
+    fecha_limite = df["FECHA"].max() - timedelta(days=dias)
+    sub = df[df["FECHA"] >= fecha_limite]
+
+    conteo = sub["NUMERO"].str[-2:].value_counts()
+
+    st.write(f"**{titulo}**")
+    st.write("🔥 Calientes:", ", ".join(conteo.head(5).index))
+    st.write("❄️ Fríos:", ", ".join(conteo.tail(5).index))
+
+top_periodo(30, "Último mes")
+top_periodo(180, "Últimos 6 meses")
+top_periodo(365, "Último año")
+
+# =========================
+# ESCALERAS Y PIRÁMIDES
+# =========================
+st.subheader("🧠 Patrones recomendados")
+
+df["PAR_FINAL"] = df["NUMERO"].str[-2:]
+
+escaleras = df[df["PAR_FINAL"].apply(lambda x: abs(int(x[0]) - int(x[1])) == 1)]
+piramides = df[df["PAR_FINAL"].apply(lambda x: x[0] == x[1])]
+
+st.write(
+    f"🔢 Escaleras: **{len(escaleras)}** | "
+    f"Última: {escaleras.iloc[0]['FECHA'].strftime('%d/%m/%Y')}"
+)
+
+st.write(
+    f"🔺 Pirámides: **{len(piramides)}** | "
+    f"Última: {piramides.iloc[0]['FECHA'].strftime('%d/%m/%Y')}"
+)
+
+st.caption("Pronósticos Lucky 🍀")
+st.caption("Análisis basado únicamente en resultados históricos")
