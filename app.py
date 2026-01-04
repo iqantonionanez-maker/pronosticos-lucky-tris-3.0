@@ -5,18 +5,18 @@ from datetime import timedelta
 st.set_page_config(page_title="Pronósticos Lucky", layout="centered")
 
 # =========================
-# CARGA DE DATOS (ROBUSTA)
+# CARGA DE DATOS
 # =========================
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv("Tris.csv")
     df["FECHA"] = pd.to_datetime(df["FECHA"], dayfirst=True)
 
-    # Forzar R1–R5 como dígitos reales
+    # Forzar R1–R5 a dígitos correctos
     for c in ["R1", "R2", "R3", "R4", "R5"]:
         df[c] = df[c].fillna(0).astype(int).astype(str)
 
-    # Construcciones TRIS reales
+    # Construcciones reales del TRIS
     df["D5"] = df["R1"] + df["R2"] + df["R3"] + df["R4"] + df["R5"]
     df["D4"] = df["R2"] + df["R3"] + df["R4"] + df["R5"]
     df["D3"] = df["R3"] + df["R4"] + df["R5"]
@@ -36,12 +36,12 @@ st.caption("Análisis estadístico del TRIS")
 st.success(f"Sorteos cargados: {len(df)}")
 
 # =========================
-# LEYENDA CLARA
+# LEYENDA
 # =========================
 st.info(
-    "🔥 **Caliente**: aparece más que el promedio | "
-    "❄️ **Frío**: aparece menos que el promedio | "
-    "⚪ **Promedio**: comportamiento normal"
+    "🔥 Caliente: aparece más que el promedio | "
+    "❄️ Frío: aparece menos que el promedio | "
+    "⚪ Promedio: comportamiento normal"
 )
 
 # =========================
@@ -96,20 +96,53 @@ if l >= 3:
     analizar("D3", numero[-3:], 1000, "Directa 3")
 
 if l >= 2:
-    analizar("PAR_FINAL", numero[-2:], 100, "Par final")
     analizar("PAR_INICIAL", numero[:2], 100, "Par inicial")
+    analizar("PAR_FINAL", numero[-2:], 100, "Par final")
 
 analizar("NUM_INICIAL", numero[0], 10, "Número inicial")
 analizar("NUM_FINAL", numero[-1], 10, "Número final")
 
 # =========================
-# OPCIONES RELACIONADAS
+# RECOMENDACIONES
 # =========================
 st.subheader("🔍 Recomendaciones relacionadas")
+
+if l >= 3:
+    analizar("D3", numero[-3:], 1000, "Directa 3 recomendada")
+
+if l >= 4:
+    analizar("D4", numero[-4:], 10000, "Directa 4 recomendada")
 
 if l >= 2:
     analizar("PAR_INICIAL", numero[:2], 100, "Par inicial recomendado")
     analizar("PAR_FINAL", numero[-2:], 100, "Par final recomendado")
 
-if l >= 3:
-    analizar("D3", numero[-3:], 1000, "Directa 3 recomendad
+# =========================
+# TOP PAR FINAL
+# =========================
+st.subheader("🔥❄️ Top Par Final por periodo")
+
+def top(dias, titulo):
+    lim = df["FECHA"].max() - timedelta(days=dias)
+    sub = df[df["FECHA"] >= lim]["PAR_FINAL"].value_counts()
+    st.write(f"**{titulo}**")
+    st.write("🔥 Calientes:", ", ".join(sub.head(5).index))
+    st.write("❄️ Fríos:", ", ".join(sub.tail(5).index))
+
+top(30, "Último mes")
+top(180, "Últimos 6 meses")
+top(365, "Último año")
+
+# =========================
+# ESCALERAS Y PIRÁMIDES
+# =========================
+st.subheader("🧠 Patrones recomendados")
+
+esc = df[df["PAR_FINAL"].apply(lambda x: abs(int(x[0]) - int(x[1])) == 1)]
+pir = df[df["PAR_FINAL"].apply(lambda x: x[0] == x[1])]
+
+st.write(f"🔢 Escaleras: **{len(esc)}** | Última: {ultima(esc)}")
+st.write(f"🔺 Pirámides: **{len(pir)}** | Última: {ultima(pir)}")
+
+st.caption("Pronósticos Lucky 🍀")
+st.caption("Análisis basado únicamente en resultados históricos")
