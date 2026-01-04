@@ -5,21 +5,27 @@ from datetime import timedelta
 st.set_page_config(page_title="Pronósticos Lucky", layout="centered")
 
 # =========================
-# CARGA DE DATOS
+# CARGA DE DATOS (ROBUSTA)
 # =========================
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv("Tris.csv")
     df["FECHA"] = pd.to_datetime(df["FECHA"], dayfirst=True)
 
-    # Reconstruir número completo
-    df["NUMERO"] = (
-        df["R1"].astype(str)
-        + df["R2"].astype(str)
-        + df["R3"].astype(str)
-        + df["R4"].astype(str)
-        + df["R5"].astype(str)
-    )
+    # Forzar R1–R5 como dígitos reales
+    for c in ["R1", "R2", "R3", "R4", "R5"]:
+        df[c] = df[c].fillna(0).astype(int).astype(str)
+
+    # Construcciones TRIS reales
+    df["D5"] = df["R1"] + df["R2"] + df["R3"] + df["R4"] + df["R5"]
+    df["D4"] = df["R2"] + df["R3"] + df["R4"] + df["R5"]
+    df["D3"] = df["R3"] + df["R4"] + df["R5"]
+
+    df["PAR_INICIAL"] = df["R1"] + df["R2"]
+    df["PAR_FINAL"]   = df["R4"] + df["R5"]
+
+    df["NUM_INICIAL"] = df["R1"]
+    df["NUM_FINAL"]   = df["R5"]
 
     return df.sort_values("FECHA", ascending=False)
 
@@ -30,7 +36,7 @@ st.caption("Análisis estadístico del TRIS")
 st.success(f"Sorteos cargados: {len(df)}")
 
 # =========================
-# LEYENDA
+# LEYENDA CLARA
 # =========================
 st.info(
     "🔥 **Caliente**: aparece más que el promedio | "
@@ -39,23 +45,19 @@ st.info(
 )
 
 # =========================
-# ENTRADA USUARIO
+# INPUT
 # =========================
-numero_usuario = st.text_input(
-    "🔍 Ingresa tu número (1 a 5 dígitos)",
-    max_chars=5
-)
+numero = st.text_input("🔍 Ingresa tu número (1 a 5 dígitos)", max_chars=5)
 
-if not numero_usuario.isdigit():
+if not numero.isdigit():
     st.stop()
 
 # =========================
 # FUNCIONES
 # =========================
-def estado_numero(conteo, total_posibles):
-    promedio = len(df) / total_posibles
+def estado(conteo, total):
+    promedio = len(df) / total
     ratio = conteo / promedio if promedio > 0 else 0
-
     if ratio >= 1.2:
         return "🔥 Caliente"
     elif ratio <= 0.8:
@@ -63,118 +65,51 @@ def estado_numero(conteo, total_posibles):
     else:
         return "⚪ Promedio"
 
-def ultima_aparicion(filtro):
-    if len(filtro) == 0:
+def ultima(df_filtrado):
+    if df_filtrado.empty:
         return "Sin historial"
-    fila = filtro.iloc[0]
-    return f"{fila['FECHA'].strftime('%d/%m/%Y')} – Sorteo {fila['CONCURSO']}"
+    f = df_filtrado.iloc[0]
+    return f"{f['FECHA'].strftime('%d/%m/%Y')} – Sorteo {f['CONCURSO']}"
 
-def analizar(valor, tipo):
-    largo = len(valor)
-
-    if largo == 5:
-        apar = df[df["NUMERO"] == valor]
-        total = 100000
-    elif largo == 4:
-        apar = df[
-            df["NUMERO"].str.startswith(valor) |
-            df["NUMERO"].str.endswith(valor)
-        ]
-        total = 10000
-    elif largo == 3:
-        apar = df[df["NUMERO"].str.contains(valor)]
-        total = 1000
-    elif largo == 2:
-        apar = df[df["NUMERO"].str.endswith(valor)]
-        total = 100
-    else:
-        apar = df[df["NUMERO"].str.endswith(valor)]
-        total = 10
-
-    estado = estado_numero(len(apar), total)
-    ultima = ultima_aparicion(apar)
-
-    st.write(f"**{tipo} {valor}** → {estado} | {ultima}")
+def analizar(col, valor, total, etiqueta):
+    sub = df[df[col] == valor]
+    st.write(
+        f"**{etiqueta} {valor}** → "
+        f"{estado(len(sub), total)} | "
+        f"{ultima(sub)}"
+    )
 
 # =========================
 # ANALISIS PRINCIPAL
 # =========================
 st.subheader("📊 Análisis de tu número")
-analizar(numero_usuario, "Número ingresado")
+
+l = len(numero)
+
+if l == 5:
+    analizar("D5", numero, 100000, "Directa 5")
+
+if l >= 4:
+    analizar("D4", numero[-4:], 10000, "Directa 4")
+
+if l >= 3:
+    analizar("D3", numero[-3:], 1000, "Directa 3")
+
+if l >= 2:
+    analizar("PAR_FINAL", numero[-2:], 100, "Par final")
+    analizar("PAR_INICIAL", numero[:2], 100, "Par inicial")
+
+analizar("NUM_INICIAL", numero[0], 10, "Número inicial")
+analizar("NUM_FINAL", numero[-1], 10, "Número final")
 
 # =========================
-# DESCOMPOSICIÓN AUTOMÁTICA
+# OPCIONES RELACIONADAS
 # =========================
-st.subheader("🔍 Opciones de juego con este número")
+st.subheader("🔍 Recomendaciones relacionadas")
 
-n = numero_usuario
+if l >= 2:
+    analizar("PAR_INICIAL", numero[:2], 100, "Par inicial recomendado")
+    analizar("PAR_FINAL", numero[-2:], 100, "Par final recomendado")
 
-if len(n) == 5:
-    analizar(n[:4], "Directa 4")
-    analizar(n[1:], "Directa 4")
-    analizar(n[:3], "Directa 3")
-    analizar(n[-3:], "Directa 3")
-    analizar(n[:2], "Par inicial")
-    analizar(n[-2:], "Par final")
-    analizar(n[0], "Número inicial")
-    analizar(n[-1], "Número final")
-
-elif len(n) == 4:
-    analizar(n[:3], "Directa 3")
-    analizar(n[-3:], "Directa 3")
-    analizar(n[:2], "Par inicial")
-    analizar(n[-2:], "Par final")
-    analizar(n[0], "Número inicial")
-    analizar(n[-1], "Número final")
-
-elif len(n) == 3:
-    analizar(n[:2], "Par inicial")
-    analizar(n[-2:], "Par final")
-    analizar(n[0], "Número inicial")
-    analizar(n[-1], "Número final")
-
-elif len(n) == 2:
-    analizar(n[0], "Número inicial")
-    analizar(n[1], "Número final")
-
-# =========================
-# TOP CALIENTES / FRÍOS
-# =========================
-st.subheader("🔥❄️ Números calientes y fríos por periodo")
-
-def top_periodo(dias, titulo):
-    fecha_limite = df["FECHA"].max() - timedelta(days=dias)
-    sub = df[df["FECHA"] >= fecha_limite]
-
-    conteo = sub["NUMERO"].str[-2:].value_counts()
-
-    st.write(f"**{titulo}**")
-    st.write("🔥 Calientes:", ", ".join(conteo.head(5).index))
-    st.write("❄️ Fríos:", ", ".join(conteo.tail(5).index))
-
-top_periodo(30, "Último mes")
-top_periodo(180, "Últimos 6 meses")
-top_periodo(365, "Último año")
-
-# =========================
-# ESCALERAS Y PIRÁMIDES
-# =========================
-st.subheader("🧠 Patrones recomendados")
-
-df["PAR_FINAL"] = df["NUMERO"].str[-2:]
-
-escaleras = df[df["PAR_FINAL"].apply(lambda x: abs(int(x[0]) - int(x[1])) == 1)]
-piramides = df[df["PAR_FINAL"].apply(lambda x: x[0] == x[1])]
-
-st.write(
-    f"🔢 Escaleras: **{len(escaleras)}** | "
-    f"Última: {escaleras.iloc[0]['FECHA'].strftime('%d/%m/%Y')}"
-)
-
-st.write(
-    f"🔺 Pirámides: **{len(piramides)}** | "
-    f"Última: {piramides.iloc[0]['FECHA'].strftime('%d/%m/%Y')}"
-)
-
-st.caption("Pronósticos Lucky 🍀")
-st.caption("Análisis basado únicamente en resultados históricos")
+if l >= 3:
+    analizar("D3", numero[-3:], 1000, "Directa 3 recomendad
