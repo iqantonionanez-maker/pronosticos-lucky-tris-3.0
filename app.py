@@ -11,23 +11,27 @@ if os.path.exists("logolucky.jpg"):
 st.title("🎲 Pronósticos Lucky")
 st.subheader("Análisis estadístico del TRIS")
 
-# ---------- CARGA DATOS ----------
+# ---------- CARGA DE DATOS ----------
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv("Tris.csv")
 
-    # Caso correcto: columnas R1–R5
-    if all(col in df.columns for col in ["R1", "R2", "R3", "R4", "R5"]):
-        df["numero"] = (
-            df["R1"].astype(int).astype(str) +
-            df["R2"].astype(int).astype(str) +
-            df["R3"].astype(int).astype(str) +
-            df["R4"].astype(int).astype(str) +
-            df["R5"].astype(int).astype(str)
+    columnas = ["R1", "R2", "R3", "R4", "R5"]
+    for col in columnas:
+        if col not in df.columns:
+            st.error("El CSV no contiene las columnas R1 a R5")
+            st.stop()
+
+    # LIMPIEZA CLAVE (FIX DEFINITIVO)
+    for col in columnas:
+        df[col] = (
+            df[col]
+            .fillna(0)
+            .astype(int)
+            .astype(str)
         )
-    else:
-        st.error("El CSV no contiene columnas R1 a R5")
-        st.stop()
+
+    df["numero"] = df["R1"] + df["R2"] + df["R3"] + df["R4"] + df["R5"]
 
     return df
 
@@ -68,7 +72,7 @@ if len(numero_usuario) != digitos:
 
 # ---------- APUESTA ----------
 st.markdown("### 💰 Datos de la jugada")
-apuesta = st.number_input("Cantidad a jugar (pesos)", 1, 100, 1)
+apuesta = st.number_input("Cantidad a jugar (pesos)", min_value=1, max_value=100, value=1)
 
 usa_multi = st.radio("¿Jugar con multiplicador?", ["No", "Sí"])
 multi = 1
@@ -76,9 +80,9 @@ multi = 1
 if usa_multi == "Sí":
     multi = st.number_input(
         "Selecciona multiplicador",
-        1,
-        apuesta,
-        1
+        min_value=1,
+        max_value=apuesta,
+        value=1
     )
 
 if apuesta * multi > 100:
@@ -95,7 +99,7 @@ else:
 st.markdown("### 📊 Análisis estadístico")
 
 conteo = df["analisis"].value_counts()
-apariciones = conteo.get(numero_usuario, 0)
+apariciones = int(conteo.get(numero_usuario, 0))
 
 st.write(f"**Apariciones históricas:** {apariciones}")
 
@@ -122,7 +126,7 @@ st.markdown("### ⏳ Análisis por periodos")
 
 for p in [50, 100, 500]:
     sub = df.tail(p)
-    ap = (sub["analisis"] == numero_usuario).sum()
+    ap = int((sub["analisis"] == numero_usuario).sum())
     st.write(f"Últimos {p}: {ap} apariciones")
 
 # ---------- ESCALERA ----------
