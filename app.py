@@ -9,19 +9,19 @@ st.set_page_config("Pronósticos Lucky TRIS", layout="wide")
 
 st.markdown("""
 <style>
-body { background-color:#1e7f43; }
+body { background-color:#1f7a4d; }
 .block-container { padding:2rem; }
 h1,h2,h3,h4 { color:#000000; }
-p,span,li { color:#000000; font-size:16px; }
+p,span,li,label { color:#000000; font-size:16px; }
 .card {
-    background:#e9f5ec;
-    padding:15px;
-    border-radius:12px;
-    margin-bottom:12px;
+    background:#e8f4ec;
+    padding:16px;
+    border-radius:14px;
+    margin-bottom:14px;
+    border:1px solid #b6d7c9;
 }
-.good { color:#0a5; font-weight:bold; }
-.mid { color:#b58900; font-weight:bold; }
-.bad { color:#b00; font-weight:bold; }
+.kpi { font-weight:700; }
+.sep { height:8px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -33,17 +33,25 @@ def cargar():
     df = pd.read_csv("Tris.csv")
     df.columns = df.columns.str.upper().str.strip()
 
+    # Fecha
     df["FECHA"] = pd.to_datetime(df["FECHA"], dayfirst=True, errors="coerce")
     df = df.dropna(subset=["FECHA"])
 
+    # Sorteo
     if "CONCURSO" in df.columns:
         df = df.rename(columns={"CONCURSO": "SORTEO"})
+    if "SORTEO" not in df.columns:
+        df["SORTEO"] = range(1, len(df)+1)
 
+    # Dígitos
     for c in ["R1","R2","R3","R4","R5"]:
+        if c not in df.columns:
+            df[c] = "0"
         df[c] = df[c].fillna("0").astype(str).str.replace(".0","", regex=False)
 
     df["NUMERO"] = df["R1"]+df["R2"]+df["R3"]+df["R4"]+df["R5"]
 
+    # Modalidades
     df["NUM_FINAL"] = df["NUMERO"].str[-1]
     df["NUM_INICIAL"] = df["NUMERO"].str[0]
     df["PAR_FINAL"] = df["NUMERO"].str[-2:]
@@ -57,7 +65,7 @@ def cargar():
 df = cargar()
 
 # =====================================================
-# PREMIOS OFICIALES
+# PREMIOS OFICIALES TRIS
 # =====================================================
 PREMIOS = {
     "NUM": 5,
@@ -69,46 +77,42 @@ PREMIOS = {
 MULTIPLICADOR_MAX = 4
 
 # =====================================================
-# FUNCIONES DE ANÁLISIS
+# FUNCIONES
 # =====================================================
 def analizar(col, val):
     d = df[df[col] == val]
     if d.empty:
         return None
+    ultimo = d.iloc[-1]["SORTEO"]
+    sin = int(df["SORTEO"].max() - ultimo)
+    prom = d["SORTEO"].diff().mean()
+    ult100 = df.tail(100)
+    v100 = int((ult100[col] == val).sum())
+    return sin, prom, v100
 
-    ultimo_sorteo = d.iloc[-1]["SORTEO"]
-    sin_salir = df["SORTEO"].max() - ultimo_sorteo
-    promedio = d["SORTEO"].diff().mean()
-
-    ult_30 = df.tail(30)
-    veces_30 = (ult_30[col] == val).sum()
-
-    return sin_salir, promedio, veces_30
-
-def explicar(sin, prom, v30):
-    if v30 >= 4:
-        estado = "🔥 Número caliente"
-        motivo = f"ha salido {v30} veces en los últimos 30 sorteos."
-    elif sin > prom:
-        estado = "❄️ Número atrasado"
-        motivo = f"sale en promedio cada {int(prom)} sorteos y lleva {sin} sin salir."
-    else:
-        estado = "⚪ Comportamiento normal"
-        motivo = "su frecuencia es similar al promedio histórico."
-    return estado, motivo
+def explicar(sin, prom, v100):
+    if v100 >= 3:
+        return ("🔥 Caliente",
+                f"ha salido {v100} veces en los últimos 100 sorteos, indicando actividad reciente.")
+    if prom == prom and sin >= prom:
+        return ("❄️ Atrasado",
+                f"sale en promedio cada {int(prom)} sorteos y lleva {sin} sorteos sin salir.")
+    return ("⚪ Normal",
+            "su frecuencia es similar al promedio histórico.")
 
 # =====================================================
 # INTERFAZ
 # =====================================================
 st.title("🎲 Pronósticos Lucky")
 st.caption("Análisis estadístico del TRIS basado en historial real")
+st.success(f"Sorteos cargados correctamente: {len(df)}")
 
 st.markdown("""
-🔥 Caliente: aparece más que el promedio  
-❄️ Frío: aparece menos que el promedio  
-⚪ Promedio: comportamiento normal
+**Leyenda:**  
+🔥 Caliente = aparece más que el promedio | ❄️ Frío/Atrasado = aparece menos que el promedio | ⚪ Normal = comportamiento promedio
 """)
 
+# Selecciones
 tipo = st.selectbox(
     "🎯 Tipo de jugada",
     ["Par final","Par inicial","Número final","Número inicial","Directa 3","Directa 4","Directa 5"],
@@ -116,7 +120,7 @@ tipo = st.selectbox(
 )
 
 num = st.text_input("🔍 Ingresa tu número")
-apuesta = st.number_input("💰 Monto base a apostar ($)", min_value=1, value=1)
+apuesta = st.number_input("💰 Apuesta base ($)", min_value=1, value=1)
 
 use_mult = st.checkbox("Activar Tris Multiplicador")
 monto_mult = st.number_input(
@@ -136,71 +140,78 @@ mapa = {
     "Directa 5": ("D5","D5",5)
 }
 
+# =====================================================
+# ANÁLISIS PRINCIPAL
+# =====================================================
 if num.isdigit() and tipo in mapa:
     col_db, key, largo = mapa[tipo]
-
     if len(num) != largo:
-        st.error(f"{tipo} requiere {largo} dígitos.")
+        st.error(f"{tipo} requiere exactamente {largo} dígito(s).")
         st.stop()
 
-    res = analizar(col_db, num)
-
     st.header("📊 Análisis de tu número")
-
-    if not res:
-        st.warning("No tiene historial registrado.")
+    r = analizar(col_db, num)
+    if not r:
+        st.warning("Este número no tiene apariciones históricas.")
     else:
-        sin, prom, v30 = res
-        estado, motivo = explicar(sin, prom, v30)
-
+        sin, prom, v100 = r
+        estado, motivo = explicar(sin, prom, v100)
         st.markdown(f"""
 <div class="card">
 <b>{estado}</b><br>
-Este número {motivo}<br>
-Sorteos sin salir: <b>{sin}</b>
+{motivo}<br>
+<b>Sorteos sin salir:</b> {sin}
 </div>
 """, unsafe_allow_html=True)
 
-    # ===============================
-    # PREMIO
-    # ===============================
-    st.header("💰 Premio máximo")
-
-    base = PREMIOS[key] * apuesta
-    premio_mult = monto_mult * PREMIOS[key] * MULTIPLICADOR_MAX if use_mult else 0
+    # =================================================
+    # PREMIO MÁXIMO (DESGLOSE CORRECTO)
+    # =================================================
+    st.header("💰 Premio máximo por jugada")
+    premio_base = PREMIOS[key] * apuesta
+    premio_mult = PREMII = 0
+    if use_mult and monto_mult > 0:
+        premio_mult = monto_mult * PREMIOS[key] * MULTIPLICADOR_MAX
+    total = premio_base + premio_mult
 
     st.markdown(f"""
 <div class="card">
-Premio base: <b>${base:,}</b><br>
-Premio máximo con multiplicador: <b>${premio_mult:,}</b>
+<b>Premio base:</b> ${premio_base:,}<br>
+<b>Premio con multiplicador:</b> ${premio_mult:,}<br>
+<hr>
+<b>Total máximo posible:</b> ${total:,}
 </div>
 """, unsafe_allow_html=True)
 
-    # ===============================
-    # RECOMENDACIÓN LUCKY REAL
-    # ===============================
-    st.header("🍀 Recomendación Lucky")
+    # =================================================
+    # RECOMENDACIÓN LUCKY (5 OPCIONES, ANALIZADAS)
+    # =================================================
+    st.header("🍀 Recomendación Lucky (ordenadas por oportunidad)")
 
-    opciones = []
+    candidatos = []
     for t,(c,k,l) in mapa.items():
         if len(num) >= l:
             val = num[-l:]
-            r = analizar(c,val)
-            if r:
-                sin,p,v30 = r
-                score = v30*2 + max(0,(sin-p))
-                opciones.append((score,t,val,sin,p,v30))
+            rr = analizar(c, val)
+            if rr:
+                sin,p,v100 = rr
+                score = (v100*3) + max(0, (sin - (p if p==p else 0)))
+                candidatos.append((score, t, val, sin, p, v100, k))
 
-    opciones = sorted(opciones, reverse=True)[:3]
+    candidatos = sorted(candidatos, reverse=True)[:5]
 
-    for i,(s,t,v,sin,p,v30) in enumerate(opciones):
-        estado,motivo = explicar(sin,p,v30)
+    for i,(s,t,v,sin,p,v100,k) in enumerate(candidatos, start=1):
+        estado, motivo = explicar(sin, p, v100)
         st.markdown(f"""
 <div class="card">
-<b>{t} {v}</b><br>
+<b>{i}. {t} {v}</b><br>
 {estado}<br>
-Recomendado porque {motivo}
+<b>Motivo:</b> {motivo}<br>
+<b>Promedio histórico:</b> {int(p) if p==p else '-'} sorteos | <b>Sin salir:</b> {sin}<br>
+<b>Premio por $1:</b> ${PREMIOS[k]:,}
 </div>
 """, unsafe_allow_html=True)
 
     st.caption("Pronósticos Lucky 🍀 — análisis estadístico, no garantiza premio.")
+else:
+    st.info("Ingresa un número válido para comenzar.")
