@@ -1,221 +1,202 @@
 import streamlit as st
 import pandas as pd
-from datetime import timedelta
+from datetime import datetime
 
-# ===============================
+# =========================
 # CONFIGURACIÓN GENERAL
-# ===============================
+# =========================
 st.set_page_config(
-    page_title="Pronósticos Lucky",
-    layout="centered",
-    initial_sidebar_state="collapsed"
+    page_title="Pronósticos Lucky TRIS",
+    layout="wide"
 )
 
-# ===============================
-# ESTILOS (VERDE CASINO)
-# ===============================
 st.markdown("""
 <style>
-.stApp {
-    background-color: #0E3B2E;
+body {
+    background-color: #0f0f1a;
 }
-.card {
-    background-color: #145A45;
-    padding: 20px;
-    border-radius: 12px;
-    margin-bottom: 20px;
+.block-container {
+    padding: 2rem;
 }
 h1, h2, h3, h4 {
-    color: #FFFFFF;
+    color: #f5c77a;
 }
-p, li, span, div {
-    color: #E0E0E0;
+p, span, li {
+    color: #e6e6e6;
 }
-.gold {
-    color: #F5C542;
+.stTextInput input {
+    background-color: #1b1b2f;
+    color: white;
+}
+.stNumberInput input {
+    background-color: #1b1b2f;
+    color: white;
+}
+.stButton button {
+    background-color: #f5c77a;
+    color: black;
     font-weight: bold;
-}
-.hot { color: #F5C542; }
-.cold { color: #6EC1E4; }
-.avg { color: #B0B0B0; }
-.small {
-    font-size: 0.9em;
-    color: #CFCFCF;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ===============================
+# =========================
 # CARGA DE DATOS
-# ===============================
+# =========================
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv("Tris.csv")
-    df["FECHA"] = pd.to_datetime(df["FECHA"], dayfirst=True)
-    df["R5"] = df["R5"].astype(str).str.zfill(5)
-    df = df.sort_values("FECHA", ascending=False).reset_index(drop=True)
-    return df
+    df["FECHA"] = pd.to_datetime(df["FECHA"])
+    df["NUMERO"] = df["NUMERO"].astype(str).str.zfill(5)
+
+    df["PAR_FINAL"] = df["NUMERO"].str[-2:]
+    df["PAR_INICIAL"] = df["NUMERO"].str[:2]
+    df["D3"] = df["NUMERO"].str[-3:]
+    df["D4"] = df["NUMERO"].str[-4:]
+    df["D5"] = df["NUMERO"]
+
+    return df.sort_values("SORTEO")
 
 df = cargar_datos()
 
-st.title("🎲 Pronósticos Lucky")
-st.caption("Análisis estadístico del TRIS basado en historial real")
-st.success(f"Sorteos cargados correctamente: {len(df)}")
+# =========================
+# PREMIOS OFICIALES
+# =========================
+PREMIOS = {
+    "D5": 50000,
+    "D4": 5000,
+    "D3": 500,
+    "PAR": 50,
+    "NUM": 5
+}
 
-st.markdown("""
-<div class="small">
-🔥 Caliente: aparece más que el promedio &nbsp;&nbsp;
-❄️ Frío: aparece menos que el promedio &nbsp;&nbsp;
-⚪ Promedio: comportamiento normal
-</div>
-""", unsafe_allow_html=True)
+MULTIPLICADOR = 4
 
-# ===============================
-# ENTRADA USUARIO
-# ===============================
-numero = st.text_input(
-    "🔍 Ingresa tu número (1 a 5 dígitos)",
-    max_chars=5
-).strip()
+# =========================
+# FUNCIONES CLAVE
+# =========================
+def estadistica(col, valor):
+    data = df[df[col] == valor]
+    if data.empty:
+        return None
 
-if not numero.isdigit() or len(numero) == 0:
-    st.stop()
-
-# ===============================
-# FUNCIONES AUXILIARES
-# ===============================
-def analizar_apariciones(filtro_series):
-    apariciones = df[filtro_series]
-    total = len(apariciones)
-
-    if total == 0:
-        return {
-            "total": 0,
-            "ultima": None,
-            "sorteos_sin_salir": len(df)
-        }
-
-    ultima = apariciones.iloc[0]
-    idx_ultima = apariciones.index[0]
-    sorteos_sin = idx_ultima
+    ultimo = data.iloc[-1]
+    sorteos_entre = data["SORTEO"].diff().mean()
+    sin_salir = df["SORTEO"].max() - ultimo["SORTEO"]
 
     return {
-        "total": total,
-        "ultima": ultima,
-        "sorteos_sin_salir": sorteos_sin
+        "ultimo_sorteo": int(ultimo["SORTEO"]),
+        "fecha": ultimo["FECHA"].date(),
+        "apariciones": len(data),
+        "promedio": int(sorteos_entre) if not pd.isna(sorteos_entre) else None,
+        "sin_salir": int(sin_salir)
     }
 
-def promedio_entre_apariciones(series_index):
-    if len(series_index) < 2:
-        return None
-    difs = series_index.to_series().diff().dropna()
-    return int(difs.mean())
+def top_modalidad(col, n=5):
+    conteo = df[col].value_counts()
+    promedio = conteo.mean()
+    calientes = conteo[conteo > promedio].head(n)
+    frios = conteo[conteo < promedio].tail(n)
+    return calientes, frios
 
-# ===============================
-# ANÁLISIS DE TU NÚMERO
-# ===============================
-st.markdown('<div class="card">', unsafe_allow_html=True)
-st.subheader("📊 Análisis de tu número")
+# =========================
+# INTERFAZ
+# =========================
+st.title("🎲 Pronósticos Lucky")
+st.subheader("Análisis estadístico del TRIS basado en historial real")
 
-filtro = df["R5"].str.endswith(numero)
-res = analizar_apariciones(filtro)
+st.info(f"Sorteos cargados correctamente: {len(df)}")
 
-if res["total"] == 0:
-    st.write(f"El número **{numero}** no tiene apariciones históricas registradas.")
-else:
-    ultima = res["ultima"]
-    st.write(
-        f"**La última vez que tu número salió ganador fue en el sorteo "
-        f"#{ultima['CONCURSO']} el día {ultima['FECHA'].strftime('%d/%m/%Y')}.**"
-    )
+numero = st.text_input("🔍 Ingresa tu número (1 a 5 dígitos)").strip()
 
-    # Último año
-    hace_un_ano = df["FECHA"].max() - timedelta(days=365)
-    ult_ano = df[(df["FECHA"] >= hace_un_ano) & (df["R5"].str.endswith(numero))]
-    prom_ano = promedio_entre_apariciones(ult_ano.index)
+apuesta = st.number_input("💰 Monto a apostar ($)", min_value=1, max_value=100, value=10)
+usar_multiplicador = st.checkbox("Activar Tris Multiplicador")
 
-    st.write(
-        f"En el **último año**, tu número ha salido ganador **{len(ult_ano)} veces**, "
-        f"con un promedio de **{prom_ano if prom_ano else '—'} sorteos** entre apariciones."
-    )
+# =========================
+# ANÁLISIS PRINCIPAL
+# =========================
+if numero.isdigit() and 1 <= len(numero) <= 5:
+    numero = numero.zfill(5)
 
-    # Histórico
-    prom_hist = promedio_entre_apariciones(df[filtro].index)
-    st.write(
-        f"En el **histórico completo**, tu número ha salido ganador "
-        f"**{res['total']} veces**, con un periodo promedio de "
-        f"**{prom_hist if prom_hist else '—'} sorteos** entre apariciones."
-    )
+    st.header("📊 Análisis de tu número")
 
-    st.write(
-        f"Actualmente acumula **{res['sorteos_sin_salir']} sorteos consecutivos "
-        f"sin ser número ganador.**"
-    )
+    est = estadistica("D5", numero)
 
-st.markdown('</div>', unsafe_allow_html=True)
-
-# ===============================
-# RECOMENDACIONES RELACIONADAS
-# ===============================
-st.markdown('<div class="card">', unsafe_allow_html=True)
-st.subheader("🔍 Recomendaciones relacionadas")
-
-def recomendar(label, valor):
-    filtro = df["R5"].str.endswith(valor)
-    r = analizar_apariciones(filtro)
-
-    if r["total"] == 0:
-        st.write(f"• **{label} {valor}** → Sin historial")
+    if not est:
+        st.warning(f"El número {numero} no tiene apariciones históricas registradas.")
     else:
-        st.write(
-            f"• **{label} {valor}** → "
-            f"{r['sorteos_sin_salir']} sorteos sin salir | "
-            f"Última: {r['ultima']['FECHA'].strftime('%d/%m/%Y')}"
+        st.success(
+            f"La última vez que salió fue en el sorteo {est['ultimo_sorteo']} "
+            f"el día {est['fecha']}"
         )
 
-if len(numero) >= 2:
-    recomendar("Par final", numero[-2:])
-    recomendar("Par inicial", numero[:2])
+        st.write(f"• Apariciones totales: {est['apariciones']}")
+        st.write(f"• Promedio entre apariciones: {est['promedio']} sorteos")
+        st.write(f"• Sorteos sin salir actualmente: {est['sin_salir']}")
 
-if len(numero) >= 3:
-    recomendar("Directa 3", numero[-3:])
+    # =========================
+    # RECOMENDACIONES RELACIONADAS
+    # =========================
+    st.header("🔍 Recomendaciones relacionadas")
 
-if len(numero) >= 4:
-    recomendar("Directa 4", numero[-4:])
+    for label, col, val in [
+        ("Par Final", "PAR_FINAL", numero[-2:]),
+        ("Par Inicial", "PAR_INICIAL", numero[:2]),
+        ("Directa 3", "D3", numero[-3:]),
+        ("Directa 4", "D4", numero[-4:])
+    ]:
+        e = estadistica(col, val)
+        if e:
+            st.write(
+                f"• {label} {val} → "
+                f"{e['sin_salir']} sorteos sin salir | "
+                f"Última vez: {e['fecha']}"
+            )
+        else:
+            st.write(f"• {label} {val} → Sin historial")
 
-st.markdown('</div>', unsafe_allow_html=True)
+    # =========================
+    # TOPS
+    # =========================
+    st.header("🔥❄️ Tops por modalidad")
 
-# ===============================
-# TOP PAR FINAL POR PERIODO
-# ===============================
-st.markdown('<div class="card">', unsafe_allow_html=True)
-st.subheader("🔥❄️ Top Par Final por periodo")
+    for titulo, col in [
+        ("Par Final", "PAR_FINAL"),
+        ("Directa 3", "D3"),
+        ("Directa 4", "D4"),
+        ("Directa 5", "D5")
+    ]:
+        hot, cold = top_modalidad(col)
+        st.subheader(titulo)
+        st.write("🔥 Calientes:", ", ".join(hot.index))
+        st.write("❄️ Fríos:", ", ".join(cold.index))
 
-def top_par_final(dias, titulo):
-    st.write(f"**{titulo}**")
-    desde = df["FECHA"].max() - timedelta(days=dias)
-    sub = df[df["FECHA"] >= desde]
-    pares = sub["R5"].str[-2:].value_counts()
+    # =========================
+    # RECOMENDACIÓN LUCKY
+    # =========================
+    st.header("🍀 Recomendación Lucky")
 
-    promedio = pares.mean()
+    base = PREMIOS["PAR"] * apuesta
+    multi = base * MULTIPLICADOR if usar_multiplicador else base
 
-    calientes = pares[pares >= promedio * 1.2].head(5)
-    frios = pares[pares <= promedio * 0.8].head(5)
+    st.markdown(f"""
+**🟢 Conservadora**
+- Par Final {numero[-2:]}
+- Premio estimado: ${base:,}
+- Con multiplicador: ${multi:,}
 
-    if not calientes.empty:
-        st.write("🔥 Calientes:")
-        for n, c in calientes.items():
-            st.write(f"• {n} → {c} apariciones (promedio esperado {promedio:.1f})")
+**🟡 Intermedia**
+- Directa 3 {numero[-3:]}
+- Premio estimado: ${PREMIOS['D3'] * apuesta:,}
+- Con multiplicador: ${PREMIOS['D3'] * apuesta * MULTIPLICADOR:,}
 
-    if not frios.empty:
-        st.write("❄️ Fríos:")
-        for n, c in frios.items():
-            st.write(f"• {n} → {c} apariciones (promedio esperado {promedio:.1f})")
+**🔴 Agresiva**
+- Directa 5 {numero}
+- Premio estimado: ${PREMIOS['D5'] * apuesta:,}
+- Con multiplicador: ${PREMIOS['D5'] * apuesta * MULTIPLICADOR:,}
+""")
 
-top_par_final(30, "Último mes")
-top_par_final(180, "Últimos 6 meses")
-top_par_final(365, "Último año")
+    st.caption("Pronósticos Lucky 🍀 — análisis estadístico, no garantía de premio.")
 
-st.markdown('</div>', unsafe_allow_html=True)
-
-st.caption("Pronósticos Lucky 🍀 — análisis estadístico, no garantía de premio.")
+else:
+    st.info("Ingresa un número válido para comenzar el análisis.")
