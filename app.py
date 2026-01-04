@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 # =========================
-# ESTILOS VISUALES (CASINO / SUERTE)
+# ESTILOS VISUALES
 # =========================
 st.markdown("""
 <style>
@@ -19,7 +19,6 @@ body {
     background: radial-gradient(circle at top, #1e1b3a, #0f1025);
     color: #ffffff;
 }
-
 .card {
     background: linear-gradient(135deg, #ffffff, #f3f3ff);
     padding: 20px;
@@ -27,27 +26,22 @@ body {
     box-shadow: 0 8px 20px rgba(0,0,0,0.25);
     margin-bottom: 20px;
 }
-
 .title {
     font-size: 40px;
     font-weight: bold;
     text-align: center;
     color: #ffd700;
-    text-shadow: 0 0 10px rgba(255,215,0,0.6);
 }
-
 .subtitle {
     text-align: center;
     font-size: 16px;
     color: #dddddd;
 }
-
 .big-number {
     font-size: 34px;
     font-weight: bold;
     color: #27ae60;
 }
-
 .footer {
     text-align: center;
     font-size: 14px;
@@ -75,6 +69,8 @@ st.markdown("""
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv("Tris.csv")
+
+    # Número completo
     df["NUMERO"] = (
         df["R1"].astype(str)
         + df["R2"].astype(str)
@@ -82,6 +78,12 @@ def cargar_datos():
         + df["R4"].astype(str)
         + df["R5"].astype(str)
     )
+
+    # Derivados correctos
+    df["PAR_FINAL"] = df["NUMERO"].str[-2:]
+    df["NUM_FINAL"] = df["NUMERO"].str[-1]
+    df["NUM_INICIAL"] = df["NUMERO"].str[0]
+
     return df
 
 df = cargar_datos()
@@ -100,7 +102,7 @@ st.markdown("## 🔍 Analizar número")
 
 numero_usuario = st.text_input(
     "Ingresa el número que deseas analizar",
-    placeholder="Ej. 21, 569, 4583, 59862"
+    placeholder="Ej. 21, 7, 569, 4583, 59862"
 )
 
 if numero_usuario:
@@ -116,15 +118,14 @@ if numero_usuario:
     # FORMA DE JUEGO
     # =========================
     if longitud >= 3:
-        forma_manual = f"Directa {longitud}"
-        st.success(f"🎯 Forma detectada automáticamente: {forma_manual}")
+        forma = f"Directa {longitud}"
+        st.success(f"🎯 Forma detectada automáticamente: {forma}")
         st.caption("En Directa 3 y 4 se consideran los últimos dígitos del número ganador.")
     else:
-        forma_manual = st.selectbox(
-            "¿Cómo deseas jugar este número?",
-            ["Par inicial", "Par final", "Número inicial", "Número final"]
+        forma = st.selectbox(
+            "¿Cómo deseas analizar este número?",
+            ["Par final", "Par inicial", "Número final", "Número inicial"]
         )
-        st.info(f"📌 Forma seleccionada: {forma_manual}")
 
     # =========================
     # DATOS DE JUGADA
@@ -151,21 +152,20 @@ if numero_usuario:
         )
 
     # =========================
-    # FILTRO SEGÚN FORMA
+    # FILTRO CORRECTO
     # =========================
-    if longitud >= 3:
+    if forma.startswith("Directa"):
         filtro = df["NUMERO"].str.endswith(numero_usuario)
+    elif forma == "Par final":
+        filtro = df["PAR_FINAL"] == numero_usuario.zfill(2)
+    elif forma == "Par inicial":
+        filtro = df["NUMERO"].str.startswith(numero_usuario.zfill(2))
+    elif forma == "Número final":
+        filtro = df["NUM_FINAL"] == numero_usuario
+    elif forma == "Número inicial":
+        filtro = df["NUM_INICIAL"] == numero_usuario
     else:
-        if forma_manual == "Par final":
-            filtro = (df["R4"].astype(str) + df["R5"].astype(str)) == numero_usuario
-        elif forma_manual == "Par inicial":
-            filtro = (df["R1"].astype(str) + df["R2"].astype(str)) == numero_usuario
-        elif forma_manual == "Número final":
-            filtro = df["R5"].astype(str) == numero_usuario
-        elif forma_manual == "Número inicial":
-            filtro = df["R1"].astype(str) == numero_usuario
-        else:
-            filtro = pd.Series([False] * len(df))
+        filtro = pd.Series(False, index=df.index)
 
     total_apariciones = filtro.sum()
     ultima_fecha = df.loc[filtro, "FECHA"].max()
@@ -220,7 +220,7 @@ if numero_usuario:
         "Directa 3": 500
     }
 
-    premio_base = premios_oficiales.get(forma_manual, 0)
+    premio_base = premios_oficiales.get(forma, 0)
     ganancia_maxima = cantidad * premio_base * multiplicador
 
     st.markdown(f"""
