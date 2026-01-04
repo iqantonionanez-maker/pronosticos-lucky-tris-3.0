@@ -1,220 +1,180 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+import numpy as np
 import matplotlib.pyplot as plt
+from datetime import datetime
 
-# --------------------------------------------------
-# CONFIGURACIÓN GENERAL
-# --------------------------------------------------
+# ---------------- CONFIGURACIÓN GENERAL ----------------
 st.set_page_config(
     page_title="Pronósticos Lucky",
     page_icon="🍀",
     layout="centered"
 )
 
-# --------------------------------------------------
-# LOGO Y ENCABEZADO
-# --------------------------------------------------
-st.image("logolucky.jpg", width=200)
+# ---------------- LOGO Y TÍTULO ----------------
+st.image("logolucky.jpg", width=180)
+st.title("🎲 Pronósticos Lucky")
+st.subheader("Análisis estadístico del TRIS")
 
-st.markdown(
-    "<h1 style='text-align:center;'>🎲 Pronósticos Lucky</h1>",
-    unsafe_allow_html=True
-)
-st.markdown(
-    "<h4 style='text-align:center;'>Análisis estadístico del TRIS</h4>",
-    unsafe_allow_html=True
-)
-
-st.divider()
-
-# --------------------------------------------------
-# CARGA DE DATOS
-# --------------------------------------------------
+# ---------------- CARGA DE DATOS ----------------
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv("Tris.csv")
-    df.columns = df.columns.str.lower()
 
-    # Ajusta si tus columnas tienen otros nombres
-    df["numero"] = df["numero"].astype(str).str.zfill(5)
-    df["fecha"] = pd.to_datetime(df["fecha"])
+    # Construir número ganador con R1 a R5
+    df["numero"] = (
+        df["R1"].astype(int).astype(str) +
+        df["R2"].astype(int).astype(str) +
+        df["R3"].astype(int).astype(str) +
+        df["R4"].astype(int).astype(str) +
+        df["R5"].astype(int).astype(str)
+    )
 
+    df["numero"] = df["numero"].str.zfill(5)
     return df
 
 df = cargar_datos()
 
-st.success(f"📊 Sorteos cargados: {len(df)}")
+st.success(f"Sorteos cargados: {len(df)}")
 
-# --------------------------------------------------
-# SECCIÓN DE ANÁLISIS
-# --------------------------------------------------
-st.subheader("🔍 Analizar número")
+# ---------------- INPUT DEL USUARIO ----------------
+st.markdown("## 🔍 Analizar número")
 
-numero_usuario = st.text_input(
+numero_input = st.text_input(
     "Ingresa el número que deseas analizar",
     max_chars=5
-)
+).strip()
 
-# --------------------------------------------------
-# DETECCIÓN DE FORMA DE JUEGO
-# --------------------------------------------------
-forma_detectada = "Forma manual"
+if numero_input.isdigit():
 
-if numero_usuario.isdigit():
-    if len(numero_usuario) == 5:
+    longitud = len(numero_input)
+
+    # -------- DETECCIÓN DE FORMA --------
+    if longitud == 5:
         forma_detectada = "Directa 5"
-    elif len(numero_usuario) == 4:
-        forma_detectada = "Directa 4 (últimos 4 números del ganador)"
-    elif len(numero_usuario) == 3:
-        forma_detectada = "Directa 3 (últimos 3 números del ganador)"
-    elif len(numero_usuario) <= 2:
-        forma_detectada = "Par / Número"
-
-st.info(f"Forma de juego detectada: **{forma_detectada}**")
-
-# --------------------------------------------------
-# SELECCIÓN DE FORMA (PAR / NÚMERO)
-# --------------------------------------------------
-forma = None
-
-if numero_usuario.isdigit() and len(numero_usuario) <= 2:
-    forma = st.selectbox(
-        "¿Cómo deseas analizar este número?",
-        ["Par final", "Par inicial", "Número final", "Número inicial"],
-        index=0,
-        key="forma_juego"
-    )
-
-    st.caption("""
-    **¿Qué significa cada forma?**
-    - **Par final**: Coincide con los últimos 2 dígitos del número ganador  
-    - **Par inicial**: Coincide con los primeros 2 dígitos  
-    - **Número final**: Coincide con el último dígito  
-    - **Número inicial**: Coincide con el primer dígito
-    """)
-
-# --------------------------------------------------
-# DATOS DE LA JUGADA
-# --------------------------------------------------
-st.subheader("💰 Datos de la jugada")
-
-monto = st.number_input(
-    "Cantidad a jugar (pesos)",
-    min_value=1,
-    value=1
-)
-
-multiplicador = st.radio(
-    "¿Jugar con multiplicador?",
-    ["No", "Sí"],
-    horizontal=True
-)
-
-factor = 1
-if multiplicador == "Sí":
-    factor = st.selectbox(
-        "Selecciona multiplicador",
-        [2, 3, 4]
-    )
-
-# --------------------------------------------------
-# FUNCIÓN DE ANÁLISIS
-# --------------------------------------------------
-def analizar_numero(df, numero, forma):
-    if forma == "Par final":
-        coincidencias = df[df["numero"].str.endswith(numero)]
-    elif forma == "Par inicial":
-        coincidencias = df[df["numero"].str.startswith(numero)]
-    elif forma == "Número final":
-        coincidencias = df[df["numero"].str.endswith(numero[-1])]
-    elif forma == "Número inicial":
-        coincidencias = df[df["numero"].str.startswith(numero[0])]
+    elif longitud == 4:
+        forma_detectada = "Directa 4 (últimos 4 números)"
+    elif longitud == 3:
+        forma_detectada = "Directa 3 (últimos 3 números)"
     else:
-        coincidencias = df[df["numero"] == numero]
+        forma_detectada = "Forma manual"
 
-    total = len(coincidencias)
-    ultima = coincidencias["fecha"].max() if total > 0 else None
-    return total, ultima
+    st.info(f"Forma de juego detectada: **{forma_detectada}**")
 
-# --------------------------------------------------
-# MOSTRAR RESULTADOS
-# --------------------------------------------------
-if numero_usuario.isdigit():
+    # -------- SELECCIÓN PARA 1 O 2 DÍGITOS --------
+    if longitud <= 2:
+        forma = st.selectbox(
+            "¿Cómo deseas analizar este número?",
+            ["Par final", "Par inicial", "Número final", "Número inicial"],
+            index=0,
+            key="forma_juego_final"
+        )
+    else:
+        forma = forma_detectada
 
-    apariciones, ultima_fecha = analizar_numero(df, numero_usuario, forma)
+    st.write(f"Forma seleccionada: **{forma}**")
 
-    st.subheader("📊 Análisis básico")
+    # ---------------- DATOS DE JUGADA ----------------
+    st.markdown("## 💰 Datos de la jugada")
 
-    st.write(f"**Apariciones históricas:** {apariciones}")
+    monto = st.number_input(
+        "Cantidad a jugar (pesos)",
+        min_value=1,
+        value=1
+    )
 
-    if ultima_fecha:
-        st.write(f"**Última aparición:** {ultima_fecha.date()}")
+    multiplicador = st.radio(
+        "¿Jugar con multiplicador?",
+        ["No", "Sí"],
+        horizontal=True
+    )
+
+    if multiplicador == "Sí":
+        mult = st.selectbox(
+            "Selecciona multiplicador",
+            [2, 3, 5, 10]
+        )
+    else:
+        mult = 1
+
+    # ---------------- FILTRADO ----------------
+    numeros = df["numero"]
+
+    if forma == "Directa 5":
+        coincidencias = numeros == numero_input.zfill(5)
+        premio_base = 50000
+    elif forma == "Directa 4 (últimos 4 números)":
+        coincidencias = numeros.str[-4:] == numero_input.zfill(4)
+        premio_base = 5000
+    elif forma == "Directa 3 (últimos 3 números)":
+        coincidencias = numeros.str[-3:] == numero_input.zfill(3)
+        premio_base = 500
+    elif forma == "Par final":
+        coincidencias = numeros.str[-2:] == numero_input.zfill(2)
+        premio_base = 50
+    elif forma == "Par inicial":
+        coincidencias = numeros.str[:2] == numero_input.zfill(2)
+        premio_base = 50
+    elif forma == "Número final":
+        coincidencias = numeros.str[-1:] == numero_input.zfill(1)
+        premio_base = 10
+    elif forma == "Número inicial":
+        coincidencias = numeros.str[:1] == numero_input.zfill(1)
+        premio_base = 10
+    else:
+        coincidencias = pd.Series([False]*len(numeros))
+        premio_base = 0
+
+    total_apariciones = coincidencias.sum()
+
+    # ---------------- RESULTADOS ----------------
+    st.markdown("## 📊 Análisis básico")
+
+    st.write(f"**Apariciones históricas:** {total_apariciones}")
+
+    if total_apariciones > 0:
+        ultima_aparicion = df[coincidencias].iloc[-1]
+        st.write("**Última aparición:** registrada en histórico")
     else:
         st.write("**Última aparición:** Nunca ha salido")
 
-    # --------------------------------------------------
-    # INDICADOR HISTÓRICO (SEMÁFORO)
-    # --------------------------------------------------
-    promedio = df.shape[0] / 1000  # referencia simple
+    # ---------------- INDICADOR ----------------
+    st.markdown("## 🚦 Indicador histórico")
 
-    st.subheader("🚦 Indicador histórico")
+    promedio = len(df) / max(1, premio_base)
 
-    if apariciones == 0:
-        st.error("🔴 Frecuencia muy baja — No hay registros históricos.")
-    elif apariciones < promedio:
-        st.warning("🟡 Frecuencia baja — Ha salido menos que el promedio.")
+    if total_apariciones == 0:
+        st.error("🔴 Frecuencia nula — No hay registros históricos.")
+    elif total_apariciones < promedio * 0.5:
+        st.warning("🟠 Frecuencia baja — Aparición inferior al promedio.")
     else:
-        st.success("🟢 Frecuencia alta — Número activo históricamente.")
+        st.success("🟢 Frecuencia media/alta — Comportamiento activo.")
 
     st.caption("""
-    **Semáforo estadístico**
-    - 🔴 Bajo: Muy pocas apariciones  
-    - 🟡 Medio: Dentro del rango normal  
-    - 🟢 Alto: Número activo en historial
-    """)
+🔴 Baja: Ha salido pocas veces históricamente  
+🟠 Media: Comportamiento dentro de lo esperado  
+🟢 Alta: Ha aparecido con frecuencia reciente  
+""")
 
-    # --------------------------------------------------
-    # GANANCIA MÁXIMA (REFERENCIAL)
-    # --------------------------------------------------
-    st.subheader("💵 Ganancia máxima posible")
+    # ---------------- GANANCIA ----------------
+    st.markdown("## 💵 Ganancia máxima posible")
 
-    premios = {
-        "Directa 5": 50000,
-        "Directa 4": 5000,
-        "Directa 3": 500,
-        "Par final": 50,
-        "Par inicial": 50,
-        "Número final": 5,
-        "Número inicial": 5
-    }
+    ganancia = monto * premio_base * mult
 
-    premio_base = premios.get(forma_detectada, premios.get(forma, 0))
-    ganancia = monto * premio_base * factor
+    st.write(
+        f"Ganancia máxima posible según reglas oficiales: **${ganancia:,.2f}**"
+    )
 
-    st.write(f"Ganancia máxima posible según reglas oficiales: **${ganancia:,.2f}**")
+    st.caption(
+        "Este cálculo se basa en pagos oficiales del TRIS y multiplicadores vigentes."
+    )
 
-    # --------------------------------------------------
-    # GRÁFICA SIMPLE
-    # --------------------------------------------------
-    st.subheader("📈 Tendencia visual")
+else:
+    st.info("Ingresa solo números para comenzar el análisis.")
 
-    ultimos = df.tail(100)
-    conteo = ultimos["numero"].value_counts().head(10)
-
-    fig, ax = plt.subplots()
-    conteo.plot(kind="bar", ax=ax)
-    ax.set_title("Números más frecuentes (últimos 100 sorteos)")
-    ax.set_ylabel("Apariciones")
-
-    st.pyplot(fig)
-
-# --------------------------------------------------
-# CIERRE
-# --------------------------------------------------
-st.divider()
-st.caption("Este análisis se basa en comportamiento estadístico histórico.")
+# ---------------- CIERRE DE MARCA ----------------
+st.markdown("---")
 st.markdown(
-    "<h4 style='text-align:center;'>🍀 Pronósticos Lucky te desea buena suerte</h4>",
+    "<center><b>Pronósticos Lucky te desea buena suerte 🍀</b></center>",
     unsafe_allow_html=True
 )
