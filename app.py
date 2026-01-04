@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from datetime import datetime
 
 # ---------------- CONFIGURACIÓN GENERAL ----------------
 st.set_page_config(
@@ -21,21 +19,33 @@ st.subheader("Análisis estadístico del TRIS")
 def cargar_datos():
     df = pd.read_csv("Tris.csv")
 
-    # Construir número ganador con R1 a R5
+    # Asegurar que las columnas existan
+    columnas = ["R1", "R2", "R3", "R4", "R5"]
+    df = df[columnas]
+
+    # Eliminar filas con datos faltantes
+    df = df.dropna()
+
+    # Convertir a entero de forma segura
+    for col in columnas:
+        df[col] = df[col].astype(int)
+
+    # Construir número ganador
     df["numero"] = (
-        df["R1"].astype(int).astype(str) +
-        df["R2"].astype(int).astype(str) +
-        df["R3"].astype(int).astype(str) +
-        df["R4"].astype(int).astype(str) +
-        df["R5"].astype(int).astype(str)
+        df["R1"].astype(str) +
+        df["R2"].astype(str) +
+        df["R3"].astype(str) +
+        df["R4"].astype(str) +
+        df["R5"].astype(str)
     )
 
     df["numero"] = df["numero"].str.zfill(5)
-    return df
+
+    return df.reset_index(drop=True)
 
 df = cargar_datos()
 
-st.success(f"Sorteos cargados: {len(df)}")
+st.success(f"Sorteos cargados correctamente: {len(df)}")
 
 # ---------------- INPUT DEL USUARIO ----------------
 st.markdown("## 🔍 Analizar número")
@@ -61,7 +71,6 @@ if numero_input.isdigit():
 
     st.info(f"Forma de juego detectada: **{forma_detectada}**")
 
-    # -------- SELECCIÓN PARA 1 O 2 DÍGITOS --------
     if longitud <= 2:
         forma = st.selectbox(
             "¿Cómo deseas analizar este número?",
@@ -89,13 +98,7 @@ if numero_input.isdigit():
         horizontal=True
     )
 
-    if multiplicador == "Sí":
-        mult = st.selectbox(
-            "Selecciona multiplicador",
-            [2, 3, 5, 10]
-        )
-    else:
-        mult = 1
+    mult = st.selectbox("Selecciona multiplicador", [2, 3, 5, 10]) if multiplicador == "Sí" else 1
 
     # ---------------- FILTRADO ----------------
     numeros = df["numero"]
@@ -121,60 +124,3 @@ if numero_input.isdigit():
     elif forma == "Número inicial":
         coincidencias = numeros.str[:1] == numero_input.zfill(1)
         premio_base = 10
-    else:
-        coincidencias = pd.Series([False]*len(numeros))
-        premio_base = 0
-
-    total_apariciones = coincidencias.sum()
-
-    # ---------------- RESULTADOS ----------------
-    st.markdown("## 📊 Análisis básico")
-
-    st.write(f"**Apariciones históricas:** {total_apariciones}")
-
-    if total_apariciones > 0:
-        ultima_aparicion = df[coincidencias].iloc[-1]
-        st.write("**Última aparición:** registrada en histórico")
-    else:
-        st.write("**Última aparición:** Nunca ha salido")
-
-    # ---------------- INDICADOR ----------------
-    st.markdown("## 🚦 Indicador histórico")
-
-    promedio = len(df) / max(1, premio_base)
-
-    if total_apariciones == 0:
-        st.error("🔴 Frecuencia nula — No hay registros históricos.")
-    elif total_apariciones < promedio * 0.5:
-        st.warning("🟠 Frecuencia baja — Aparición inferior al promedio.")
-    else:
-        st.success("🟢 Frecuencia media/alta — Comportamiento activo.")
-
-    st.caption("""
-🔴 Baja: Ha salido pocas veces históricamente  
-🟠 Media: Comportamiento dentro de lo esperado  
-🟢 Alta: Ha aparecido con frecuencia reciente  
-""")
-
-    # ---------------- GANANCIA ----------------
-    st.markdown("## 💵 Ganancia máxima posible")
-
-    ganancia = monto * premio_base * mult
-
-    st.write(
-        f"Ganancia máxima posible según reglas oficiales: **${ganancia:,.2f}**"
-    )
-
-    st.caption(
-        "Este cálculo se basa en pagos oficiales del TRIS y multiplicadores vigentes."
-    )
-
-else:
-    st.info("Ingresa solo números para comenzar el análisis.")
-
-# ---------------- CIERRE DE MARCA ----------------
-st.markdown("---")
-st.markdown(
-    "<center><b>Pronósticos Lucky te desea buena suerte 🍀</b></center>",
-    unsafe_allow_html=True
-)
