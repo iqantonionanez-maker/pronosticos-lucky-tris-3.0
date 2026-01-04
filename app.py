@@ -28,7 +28,12 @@ def cargar_datos():
         st.error("No se encontró la columna de resultados")
         st.stop()
 
-    df["numero"] = df[col].astype(str).str.replace(".0", "", regex=False).str.zfill(5)
+    df["numero"] = (
+        df[col]
+        .astype(str)
+        .str.replace(".0", "", regex=False)
+        .str.zfill(5)
+    )
     return df
 
 df = cargar_datos()
@@ -53,7 +58,13 @@ modalidades = {
 }
 
 st.markdown("### Selecciona la modalidad")
-modalidad = st.radio("", list(modalidades.keys()), index=3)
+
+# Par final como default
+modalidad = st.radio(
+    "",
+    list(modalidades.keys()),
+    index=list(modalidades.keys()).index("Par final")
+)
 
 tipo, digitos_req = modalidades[modalidad]
 
@@ -80,36 +91,29 @@ if apuesta * multi > 100:
     st.error("La apuesta total no puede exceder $100")
     st.stop()
 
-# ---------------- FILTRO CENTRAL ----------------
-def filtrar(df, num, tipo, dig):
-    if tipo == "inicio":
-        return df[df["numero"].str[:dig] == num]
-    else:
-        return df[df["numero"].str[-dig:] == num]
-
-df_match = filtrar(df, numero_usuario, tipo, digitos_req)
+# ---------------- COLUMNA DE ANALISIS (FIX REAL) ----------------
+if tipo == "inicio":
+    df["analisis"] = df["numero"].str[:digitos_req]
+else:
+    df["analisis"] = df["numero"].str[-digitos_req:]
 
 # ---------------- ANALISIS ----------------
 st.markdown("### 📊 Análisis estadístico")
 
+df_match = df[df["analisis"] == numero_usuario]
 apariciones = len(df_match)
+
 st.write(f"**Apariciones históricas:** {apariciones}")
 
 if apariciones > 0:
-    ultima_pos = df_match.index.max()
-    st.write(f"**Última aparición:** Sorteo #{ultima_pos}")
+    st.write(f"**Última aparición:** Sorteo #{df_match.index.max()}")
 else:
     st.write("**Última aparición:** Nunca ha salido")
 
 # ---------------- CALIENTE / FRIO ----------------
 st.markdown("### 🔥❄️ Número caliente / frío")
 
-conteo = (
-    df["numero"]
-    .apply(lambda x: x[:digitos_req] if tipo == "inicio" else x[-digitos_req:])
-    .value_counts()
-)
-
+conteo = df["analisis"].value_counts()
 promedio = conteo.mean()
 
 if numero_usuario in conteo:
@@ -127,7 +131,7 @@ st.markdown("### ⏳ Análisis por periodos")
 
 for p in [50, 100, 500]:
     sub = df.tail(p)
-    ap = len(filtrar(sub, numero_usuario, tipo, digitos_req))
+    ap = len(sub[sub["analisis"] == numero_usuario])
     st.write(f"Últimos {p}: {ap} apariciones")
 
 # ---------------- ESCALERA ----------------
