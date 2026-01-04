@@ -1,10 +1,9 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 
-# =========================
+# =====================================================
 # CONFIGURACIÓN GENERAL
-# =========================
+# =====================================================
 st.set_page_config(
     page_title="Pronósticos Lucky TRIS",
     layout="wide"
@@ -24,11 +23,7 @@ h1, h2, h3, h4 {
 p, span, li {
     color: #e6e6e6;
 }
-.stTextInput input {
-    background-color: #1b1b2f;
-    color: white;
-}
-.stNumberInput input {
+.stTextInput input, .stNumberInput input {
     background-color: #1b1b2f;
     color: white;
 }
@@ -40,15 +35,31 @@ p, span, li {
 </style>
 """, unsafe_allow_html=True)
 
-# =========================
-# CARGA DE DATOS
-# =========================
+# =====================================================
+# CARGA DE DATOS (ROBUSTA)
+# =====================================================
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv("Tris.csv")
-    df["FECHA"] = pd.to_datetime(df["FECHA"])
+
+    # Normalizar nombres
+    df.columns = df.columns.str.upper()
+
+    # Fecha segura (formato mexicano + tolerante)
+    df["FECHA"] = pd.to_datetime(
+        df["FECHA"],
+        dayfirst=True,
+        errors="coerce"
+    )
+
+    # Eliminar registros inválidos
+    df = df.dropna(subset=["FECHA"])
+
+    # Asegurar tipos
+    df["SORTEO"] = df["SORTEO"].astype(int)
     df["NUMERO"] = df["NUMERO"].astype(str).str.zfill(5)
 
+    # Derivados de juego
     df["PAR_FINAL"] = df["NUMERO"].str[-2:]
     df["PAR_INICIAL"] = df["NUMERO"].str[:2]
     df["D3"] = df["NUMERO"].str[-3:]
@@ -59,62 +70,70 @@ def cargar_datos():
 
 df = cargar_datos()
 
-# =========================
-# PREMIOS OFICIALES
-# =========================
+# =====================================================
+# CONSTANTES OFICIALES TRIS
+# =====================================================
 PREMIOS = {
-    "D5": 50000,
-    "D4": 5000,
-    "D3": 500,
     "PAR": 50,
-    "NUM": 5
+    "D3": 500,
+    "D4": 5000,
+    "D5": 50000
 }
 
 MULTIPLICADOR = 4
 
-# =========================
-# FUNCIONES CLAVE
-# =========================
+# =====================================================
+# FUNCIONES
+# =====================================================
 def estadistica(col, valor):
     data = df[df[col] == valor]
     if data.empty:
         return None
 
     ultimo = data.iloc[-1]
-    sorteos_entre = data["SORTEO"].diff().mean()
+    promedio = data["SORTEO"].diff().mean()
     sin_salir = df["SORTEO"].max() - ultimo["SORTEO"]
 
     return {
-        "ultimo_sorteo": int(ultimo["SORTEO"]),
-        "fecha": ultimo["FECHA"].date(),
         "apariciones": len(data),
-        "promedio": int(sorteos_entre) if not pd.isna(sorteos_entre) else None,
+        "ultimo_sorteo": int(ultimo["SORTEO"]),
+        "fecha": ultimo["FECHA"].strftime("%d/%m/%Y"),
+        "promedio": int(promedio) if not pd.isna(promedio) else None,
         "sin_salir": int(sin_salir)
     }
 
-def top_modalidad(col, n=5):
+def top_modalidad(col, nombre):
     conteo = df[col].value_counts()
     promedio = conteo.mean()
-    calientes = conteo[conteo > promedio].head(n)
-    frios = conteo[conteo < promedio].tail(n)
-    return calientes, frios
 
-# =========================
+    calientes = conteo[conteo > promedio].head(5)
+    frios = conteo[conteo < promedio].tail(5)
+
+    st.subheader(nombre)
+    st.write("🔥 Calientes:", ", ".join(calientes.index) if not calientes.empty else "Sin datos")
+    st.write("❄️ Fríos:", ", ".join(frios.index) if not frios.empty else "Sin datos")
+
+# =====================================================
 # INTERFAZ
-# =========================
+# =====================================================
 st.title("🎲 Pronósticos Lucky")
-st.subheader("Análisis estadístico del TRIS basado en historial real")
+st.caption("Análisis estadístico del TRIS basado en historial real")
 
-st.info(f"Sorteos cargados correctamente: {len(df)}")
+st.success(f"Sorteos cargados correctamente: {len(df)}")
+
+st.markdown(
+    "🔥 **Caliente**: aparece más que el promedio &nbsp;&nbsp;"
+    "❄️ **Frío**: aparece menos que el promedio &nbsp;&nbsp;"
+    "⚪ **Promedio**: comportamiento normal"
+)
 
 numero = st.text_input("🔍 Ingresa tu número (1 a 5 dígitos)").strip()
+apuesta = st.number_input("💰 Monto a apostar ($)", min_value=1, max_value=500, value=10)
+usar_multiplicador = st.checkbox("Usar Tris Multiplicador")
 
-apuesta = st.number_input("💰 Monto a apostar ($)", min_value=1, max_value=100, value=10)
-usar_multiplicador = st.checkbox("Activar Tris Multiplicador")
-
-# =========================
+# =====================================================
 # ANÁLISIS PRINCIPAL
-# =========================
+# =====================================================
 if numero.isdigit() and 1 <= len(numero) <= 5:
     numero = numero.zfill(5)
 
@@ -126,20 +145,19 @@ if numero.isdigit() and 1 <= len(numero) <= 5:
         st.warning(f"El número {numero} no tiene apariciones históricas registradas.")
     else:
         st.success(
-            f"La última vez que salió fue en el sorteo {est['ultimo_sorteo']} "
-            f"el día {est['fecha']}"
+            f"La última vez que tu número salió ganador fue en el "
+            f"sorteo {est['ultimo_sorteo']} el día {est['fecha']}"
         )
+        st.write(f"• Apariciones totales: **{est['apariciones']}**")
+        st.write(f"• Promedio entre apariciones: **{est['promedio']} sorteos**")
+        st.write(f"• Sorteos sin salir actualmente: **{est['sin_salir']}**")
 
-        st.write(f"• Apariciones totales: {est['apariciones']}")
-        st.write(f"• Promedio entre apariciones: {est['promedio']} sorteos")
-        st.write(f"• Sorteos sin salir actualmente: {est['sin_salir']}")
-
-    # =========================
+    # =================================================
     # RECOMENDACIONES RELACIONADAS
-    # =========================
+    # =================================================
     st.header("🔍 Recomendaciones relacionadas")
 
-    for label, col, val in [
+    for nombre, col, val in [
         ("Par Final", "PAR_FINAL", numero[-2:]),
         ("Par Inicial", "PAR_INICIAL", numero[:2]),
         ("Directa 3", "D3", numero[-3:]),
@@ -148,52 +166,41 @@ if numero.isdigit() and 1 <= len(numero) <= 5:
         e = estadistica(col, val)
         if e:
             st.write(
-                f"• {label} {val} → "
+                f"• {nombre} **{val}** → "
                 f"{e['sin_salir']} sorteos sin salir | "
                 f"Última vez: {e['fecha']}"
             )
         else:
-            st.write(f"• {label} {val} → Sin historial")
+            st.write(f"• {nombre} **{val}** → Sin historial")
 
-    # =========================
+    # =================================================
     # TOPS
-    # =========================
+    # =================================================
     st.header("🔥❄️ Tops por modalidad")
+    top_modalidad("PAR_FINAL", "Par Final")
+    top_modalidad("D3", "Directa 3")
+    top_modalidad("D4", "Directa 4")
+    top_modalidad("D5", "Directa 5")
 
-    for titulo, col in [
-        ("Par Final", "PAR_FINAL"),
-        ("Directa 3", "D3"),
-        ("Directa 4", "D4"),
-        ("Directa 5", "D5")
-    ]:
-        hot, cold = top_modalidad(col)
-        st.subheader(titulo)
-        st.write("🔥 Calientes:", ", ".join(hot.index))
-        st.write("❄️ Fríos:", ", ".join(cold.index))
-
-    # =========================
+    # =================================================
     # RECOMENDACIÓN LUCKY
-    # =========================
+    # =================================================
     st.header("🍀 Recomendación Lucky")
 
-    base = PREMIOS["PAR"] * apuesta
-    multi = base * MULTIPLICADOR if usar_multiplicador else base
+    mult = MULTIPLICADOR if usar_multiplicador else 1
 
     st.markdown(f"""
-**🟢 Conservadora**
-- Par Final {numero[-2:]}
-- Premio estimado: ${base:,}
-- Con multiplicador: ${multi:,}
+### 🟢 Opción Conservadora
+- **Par Final {numero[-2:]}**
+- Ganancia máxima: **${PREMIOS['PAR'] * apuesta * mult:,}**
 
-**🟡 Intermedia**
-- Directa 3 {numero[-3:]}
-- Premio estimado: ${PREMIOS['D3'] * apuesta:,}
-- Con multiplicador: ${PREMIOS['D3'] * apuesta * MULTIPLICADOR:,}
+### 🟡 Opción Intermedia
+- **Directa 3 {numero[-3:]}**
+- Ganancia máxima: **${PREMIOS['D3'] * apuesta * mult:,}**
 
-**🔴 Agresiva**
-- Directa 5 {numero}
-- Premio estimado: ${PREMIOS['D5'] * apuesta:,}
-- Con multiplicador: ${PREMIOS['D5'] * apuesta * MULTIPLICADOR:,}
+### 🔴 Opción Agresiva
+- **Directa 5 {numero}**
+- Ganancia máxima: **${PREMIOS['D5'] * apuesta * mult:,}**
 """)
 
     st.caption("Pronósticos Lucky 🍀 — análisis estadístico, no garantía de premio.")
