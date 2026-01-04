@@ -31,14 +31,12 @@ p, span, li {
 """, unsafe_allow_html=True)
 
 # =====================================================
-# CARGA DE DATOS (AJUSTADA A TU CSV)
+# CARGA DE DATOS (100% COMPATIBLE CON CSV TRIS REAL)
 # =====================================================
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv("Tris.csv")
-
-    # Normalizar columnas
-    df.columns = df.columns.str.upper()
+    df.columns = df.columns.str.upper().str.strip()
 
     # Fecha segura
     df["FECHA"] = pd.to_datetime(
@@ -48,14 +46,29 @@ def cargar_datos():
     )
     df = df.dropna(subset=["FECHA"])
 
-    # Construir número TRIS REAL
-    for col in ["R1", "R2", "R3", "R4", "R5"]:
-        df[col] = df[col].astype(int).astype(str)
-
-    df["NUMERO"] = df["R1"] + df["R2"] + df["R3"] + df["R4"] + df["R5"]
-
     # Renombrar sorteo
-    df = df.rename(columns={"CONCURSO": "SORTEO"})
+    if "CONCURSO" in df.columns:
+        df = df.rename(columns={"CONCURSO": "SORTEO"})
+    else:
+        st.error("❌ El archivo no tiene la columna CONCURSO")
+        st.stop()
+
+    # Limpiar dígitos R1–R5 (pueden venir con NaN)
+    for col in ["R1", "R2", "R3", "R4", "R5"]:
+        if col not in df.columns:
+            st.error(f"❌ Falta la columna {col} en el CSV")
+            st.stop()
+
+        df[col] = (
+            df[col]
+            .fillna(0)
+            .astype(str)
+            .str.replace(".0", "", regex=False)
+            .str.zfill(1)
+        )
+
+    # Construir número TRIS real
+    df["NUMERO"] = df["R1"] + df["R2"] + df["R3"] + df["R4"] + df["R5"]
 
     # Derivados de juego
     df["PAR_FINAL"] = df["NUMERO"].str[-2:]
