@@ -1,24 +1,20 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 
-# ---------------- CONFIGURACIÓN ----------------
+# ---------------- CONFIG ----------------
 st.set_page_config(
     page_title="Pronósticos Lucky",
     page_icon="🎲",
     layout="centered"
 )
 
-# ---------------- ESTILOS (BLANCO Y LIMPIO) ----------------
+# ---------------- ESTILO LIMPIO ----------------
 st.markdown("""
 <style>
-body {
-    background-color: white;
-    color: black;
-}
+body { background-color: white; color: black; }
 div[data-testid="stMetric"] {
-    background-color: #f7f7f7;
-    padding: 12px;
+    background-color: #f5f5f5;
+    padding: 10px;
     border-radius: 10px;
 }
 </style>
@@ -26,7 +22,7 @@ div[data-testid="stMetric"] {
 
 # ---------------- LOGO ----------------
 try:
-    st.image("logo.png", width=160)
+    st.image("logo.png", width=140)
 except:
     pass
 
@@ -37,17 +33,28 @@ st.markdown("<p style='text-align:center;'>Análisis estadístico del TRIS (solo
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv("Tris.csv")
-
-    # Normalizar columnas
     df.columns = [c.upper() for c in df.columns]
 
-    if "NUMERO" not in df.columns:
-        raise ValueError("El archivo debe contener la columna NUMERO")
+    # Detectar columna del número automáticamente
+    posibles = ["NUMERO", "RESULTADO", "NUM", "GANADOR", "COMBINACION"]
+    col_numero = None
 
+    for c in posibles:
+        if c in df.columns:
+            col_numero = c
+            break
+
+    if col_numero is None:
+        st.error("❌ No se encontró columna de números en el CSV")
+        st.stop()
+
+    df["NUMERO_BASE"] = df[col_numero].astype(str).str.zfill(5)
+
+    # Fecha si existe
     if "FECHA" in df.columns:
         df["FECHA"] = pd.to_datetime(df["FECHA"], errors="coerce")
-
-    df["NUMERO"] = df["NUMERO"].astype(str).str.zfill(5)
+    else:
+        df["FECHA"] = pd.NaT
 
     return df
 
@@ -55,36 +62,32 @@ df = cargar_datos()
 st.success(f"Sorteos cargados correctamente: {len(df)}")
 
 # ---------------- FUNCIONES ----------------
-def obtener_parte(numero, modalidad):
+def extraer_parte(numero, modalidad):
     if modalidad == "Par final":
-        return numero.zfill(2)[-2:]
+        return numero[-2:]
     if modalidad == "Par inicial":
-        return numero.zfill(2)[:2]
+        return numero[:2]
     if modalidad == "Número final":
         return numero[-1]
     if modalidad == "Número inicial":
         return numero[0]
     if modalidad == "Directa 3":
-        return numero.zfill(3)[-3:]
+        return numero[-3:]
     if modalidad == "Directa 4":
-        return numero.zfill(4)[-4:]
+        return numero[-4:]
     if modalidad == "Directa 5":
-        return numero.zfill(5)[-5:]
+        return numero
     return numero
 
-def analizar_numero(df, numero_usuario, modalidad):
-    serie = df["NUMERO"].apply(lambda x: obtener_parte(x, modalidad))
+def analizar(df, valor, modalidad):
+    serie = df["NUMERO_BASE"].apply(lambda x: extraer_parte(x, modalidad))
     conteo = serie.value_counts()
 
-    apariciones = conteo.get(numero_usuario, 0)
-
-    fechas = None
-    if "FECHA" in df.columns:
-        fechas = df.loc[serie == numero_usuario, "FECHA"].dropna()
-
-    ultima_fecha = fechas.iloc[-1] if fechas is not None and len(fechas) > 0 else None
-
+    apariciones = conteo.get(valor, 0)
     promedio = conteo.mean()
+
+    fechas = df.loc[serie == valor, "FECHA"].dropna()
+    ultima = fechas.iloc[-1] if len(fechas) > 0 else None
 
     if apariciones >= promedio * 1.2:
         estado = "🔥 Número caliente"
@@ -93,31 +96,28 @@ def analizar_numero(df, numero_usuario, modalidad):
     else:
         estado = "⚖️ Número neutro"
 
-    return apariciones, ultima_fecha, estado, conteo
+    return apariciones, promedio, ultima, estado, conteo
 
 # ---------------- INTERFAZ ----------------
 st.markdown("### 🔍 Analizar número")
 
-numero_input = st.text_input("Ingresa el número", value="")
+numero = st.text_input("Ingresa el número")
 modalidad = st.selectbox(
     "Selecciona la modalidad",
     ["Par final", "Par inicial", "Número final", "Número inicial", "Directa 3", "Directa 4", "Directa 5"]
 )
 
-if numero_input:
-    numero_input = numero_input.strip()
+if numero:
+    numero = numero.strip()
 
-    apariciones, ultima_fecha, estado, conteo = analizar_numero(
-        df, numero_input, modalidad
-    )
+    apar, prom, ultima, estado, conteo = analizar(df, numero, modalidad)
 
     st.markdown("### 📊 Análisis estadístico")
+    st.write(f"**Número analizado:** {numero}")
+    st.write(f"**Apariciones históricas:** {apar}")
 
-    st.write(f"**Número analizado:** {numero_input}")
-    st.write(f"**Apariciones históricas:** {apariciones}")
-
-    if ultima_fecha is not None:
-        st.write(f"**Última vez que salió:** {ultima_fecha.strftime('%d %B %Y')}")
+    if ultima is not None:
+        st.write(f"**Última vez que salió:** {ultima.strftime('%d %B %Y')}")
     else:
         st.write("**Última vez que salió:** Nunca ha salido")
 
@@ -128,41 +128,36 @@ if numero_input:
     st.markdown("### 🔄 Números similares")
 
     try:
-        base = int(numero_input)
-        similares = [str(base - 2), str(base - 1), str(base + 1), str(base + 2)]
+        base = int(numero)
+        similares = [base - 2, base - 1, base + 1, base + 2]
     except:
         similares = []
 
     for s in similares:
-        apar = conteo.get(s, 0)
+        s = str(s).zfill(len(numero))
+        apar_s = conteo.get(s, 0)
+
         fechas_s = df.loc[
-            df["NUMERO"].apply(lambda x: obtener_parte(x, modalidad)) == s,
+            df["NUMERO_BASE"].apply(lambda x: extraer_parte(x, modalidad)) == s,
             "FECHA"
-        ] if "FECHA" in df.columns else None
+        ].dropna()
 
-        if fechas_s is not None and not fechas_s.dropna().empty:
-            ult = fechas_s.dropna().iloc[-1].strftime('%d %B %Y')
-        else:
-            ult = "Nunca ha salido"
+        ult_s = fechas_s.iloc[-1].strftime('%d %B %Y') if len(fechas_s) > 0 else "Nunca ha salido"
 
-        st.write(f"• {s} → {apar} apariciones | Última vez: {ult}")
+        st.write(f"• {s} → {apar_s} apariciones | Última vez: {ult_s}")
 
-    # ---------------- RECOMENDACIONES LUCKY ----------------
+    # ---------------- RECOMENDACIONES ----------------
     st.markdown("### 🍀 Recomendaciones Lucky")
 
-    promedio = conteo.mean()
-    candidatos = conteo[
-        (conteo > 0) &
-        (conteo < promedio * 0.9)
-    ].sort_values().head(3)
+    candidatos = conteo[(conteo > 0) & (conteo < prom)].sort_values().head(3)
 
     if len(candidatos) == 0:
         st.write("No se detectaron recomendaciones claras.")
     else:
         for n, v in candidatos.items():
-            st.write(f"• {n} → {v} apariciones (por debajo del promedio)")
+            st.write(f"• {n} → {v} apariciones (debajo del promedio)")
 
-# ---------------- DISCLAIMER ----------------
+# ---------------- FOOTER ----------------
 st.markdown("---")
 st.caption("⚠️ Este análisis es únicamente estadístico e informativo. No garantiza premios ni resultados.")
 st.markdown("🍀 **Pronósticos Lucky — suerte informada**")
