@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 
 # ---------------- CONFIGURACIÓN ----------------
 st.set_page_config(
@@ -8,22 +7,21 @@ st.set_page_config(
     layout="centered"
 )
 
-# ---------------- ESTILOS ----------------
+# ---------------- ESTILO CLARO ----------------
 st.markdown("""
 <style>
 body {
-    background-color: #0f172a;
-    color: #e5e7eb;
+    background-color: #ffffff;
+    color: #000000;
 }
 .block-container {
-    background-color: #020617;
+    background-color: #ffffff;
     padding: 2rem;
-    border-radius: 12px;
 }
 .metric-box {
-    background-color: #020617;
-    border: 1px solid #334155;
-    border-radius: 10px;
+    background-color: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
     padding: 12px;
     margin-bottom: 10px;
 }
@@ -31,7 +29,9 @@ body {
 """, unsafe_allow_html=True)
 
 # ---------------- LOGO ----------------
-st.image("logolucky.jpg", use_container_width=True)
+col1, col2, col3 = st.columns([1,2,1])
+with col2:
+    st.image("logolucky.jpg", width=180)
 
 st.title("🎲 Pronósticos Lucky")
 st.caption("Análisis estadístico del TRIS (solo informativo)")
@@ -40,19 +40,12 @@ st.caption("Análisis estadístico del TRIS (solo informativo)")
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv("Tris.csv")
-
-    # Normalizar nombres
     df.columns = [c.upper() for c in df.columns]
 
-    # Detectar columnas R1-R5
     r_cols = [c for c in df.columns if c.startswith("R")]
-
-    # Crear número completo SIN ceros artificiales
     df["NUMERO"] = df[r_cols].astype(str).agg("".join, axis=1)
 
-    # Fecha
     df["FECHA"] = pd.to_datetime(df["FECHA"], errors="coerce")
-
     return df
 
 df = cargar_datos()
@@ -76,41 +69,32 @@ def obtener_parte(numero, modalidad):
         return numero[-4:]
     return numero
 
-def conteo_modalidad(modalidad):
+def serie_modalidad(modalidad):
     return df["NUMERO"].apply(lambda x: obtener_parte(x, modalidad))
 
-def estadisticas(valor, modalidad):
-    serie = conteo_modalidad(modalidad)
-    apariciones = (serie == valor).sum()
+def ultima_info(valor, modalidad):
+    serie = serie_modalidad(modalidad)
+    coincidencias = df[serie == valor]
 
-    if apariciones == 0:
-        return 0, None, None, None
+    if coincidencias.empty:
+        return "Nunca ha salido"
 
-    ultimo = df[serie == valor].iloc[-1]
-    fecha = ultimo["FECHA"].strftime("%d %B %Y")
-    sorteo = ultimo.get("SORTEO", "N/D")
+    fila = coincidencias.iloc[-1]
+    if pd.isna(fila["FECHA"]):
+        return "Fecha no disponible"
 
-    ultimos_100 = serie.tail(100)
-    ultimos_30 = serie.tail(30)
+    return fila["FECHA"].strftime("%d %B %Y")
 
-    return (
-        apariciones,
-        f"Sorteo #{sorteo} – {fecha}",
-        (ultimos_30 == valor).sum(),
-        (ultimos_100 == valor).sum()
-    )
-
-def estado_caliente(apariciones, total, total_valores):
-    promedio = total / total_valores
+def estado_caliente(apariciones, total, universo):
+    promedio = total / universo
     if apariciones >= promedio * 1.2:
         return "🔥 Número caliente — aparece ≥20% más que el promedio."
     if apariciones <= promedio * 0.8:
         return "❄️ Número frío — aparece ≥20% menos que el promedio."
     return "⚪ Comportamiento promedio."
 
-# ---------------- INPUT USUARIO ----------------
+# ---------------- INPUT ----------------
 st.subheader("🔍 Analizar número")
-
 numero_usuario = st.text_input("Ingresa el número").strip()
 
 modalidad = st.selectbox(
@@ -129,33 +113,32 @@ modalidad = st.selectbox(
 
 if numero_usuario.isdigit():
     valor = obtener_parte(numero_usuario, modalidad)
+    serie = serie_modalidad(modalidad)
 
-    st.markdown(f"🎯 **Modalidad:** {modalidad}")
-    st.markdown(f"🔎 **Número analizado:** {valor}")
-
-    apar, ultima, ult30, ult100 = estadisticas(valor, modalidad)
+    apariciones = (serie == valor).sum()
+    ultima = ultima_info(valor, modalidad)
 
     st.subheader("📊 Análisis estadístico")
-
     st.markdown(f"""
     <div class="metric-box">
-    <b>Apariciones históricas:</b> {apar}<br>
-    <b>Última aparición:</b> {ultima if ultima else "Nunca ha salido"}
+    <b>Número analizado:</b> {valor}<br>
+    <b>Apariciones históricas:</b> {apariciones}<br>
+    <b>Última vez que salió:</b> {ultima}
     </div>
     """, unsafe_allow_html=True)
 
     estado = estado_caliente(
-        apar,
+        apariciones,
         total_sorteos,
-        conteo_modalidad(modalidad).nunique()
+        serie.nunique()
     )
     st.info(estado)
 
     st.caption(
-        "🔥 Caliente = ≥20% más apariciones | ❄️ Frío = ≥20% menos apariciones"
+        "Caliente = ≥20% más apariciones | Frío = ≥20% menos apariciones"
     )
 
-    # --------- NÚMEROS SIMILARES ---------
+    # ---------------- NÚMEROS SIMILARES ----------------
     st.subheader("🔄 Números similares")
 
     try:
@@ -165,22 +148,26 @@ if numero_usuario.isdigit():
         similares = []
 
     for s in similares:
-        a, u, _, _ = estadisticas(s, modalidad)
-        st.write(f"**{s}** → {a} apariciones | Última vez: {u or 'Nunca'}")
+        apar_s = (serie == s).sum()
+        ult_s = ultima_info(s, modalidad)
+        st.write(f"• **{s}** → {apar_s} apariciones | Última vez: {ult_s}")
 
-    # --------- RECOMENDACIONES LUCKY ---------
+    # ---------------- RECOMENDACIONES ----------------
     st.subheader("🍀 Recomendaciones Lucky")
 
-    serie = conteo_modalidad(modalidad)
     conteo = serie.value_counts()
-
     promedio = total_sorteos / conteo.size
 
     candidatos = []
     for num, cnt in conteo.items():
         if cnt < promedio:
-            ultimo = df[serie == num].iloc[-1]
-            dias = (df.iloc[-1]["FECHA"] - ultimo["FECHA"]).days
+            coincidencias = df[serie == num]
+            if coincidencias.empty:
+                continue
+            fecha = coincidencias.iloc[-1]["FECHA"]
+            if pd.isna(fecha):
+                continue
+            dias = (df.iloc[-1]["FECHA"] - fecha).days
             candidatos.append((num, cnt, dias))
 
     candidatos = sorted(candidatos, key=lambda x: x[2], reverse=True)[:3]
@@ -189,13 +176,13 @@ if numero_usuario.isdigit():
         for n, c, d in candidatos:
             st.markdown(f"""
             **{n}**  
-            📅 Última vez que salió: {df[serie == n].iloc[-1]["FECHA"].strftime("%d %B %Y")}  
-            📊 Apariciones históricas: {c}  
+            📅 Última vez: {ultima_info(n, modalidad)}  
+            📊 Apariciones: {c}  
             ⏳ Lleva {d} días sin salir  
-            📈 Históricamente aparece cada ~{int(total_sorteos/c)} sorteos
+            📈 Promedio histórico: cada ~{int(total_sorteos/c)} sorteos
             """)
     else:
-        st.write("No se detectaron recomendaciones estadísticas claras.")
+        st.write("No se detectaron recomendaciones claras.")
 
     st.warning(
         "⚠️ Este análisis es únicamente estadístico e informativo. "
