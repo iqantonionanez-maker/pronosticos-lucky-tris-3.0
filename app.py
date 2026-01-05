@@ -5,83 +5,61 @@ from datetime import datetime
 # ---------------- CONFIGURACIÓN VISUAL ----------------
 st.set_page_config(
     page_title="Pronósticos Lucky",
-    page_icon="🎲",
+    page_icon="🍀",
     layout="centered"
 )
 
 st.markdown("""
 <style>
 body {
-    background-color: #0f172a;
+    background-color: #0e1117;
 }
-.block-container {
-    background-color: #020617;
-    padding: 2rem;
-    border-radius: 12px;
+.big-title {
+    font-size:32px;
+    font-weight:bold;
+    color:#2ecc71;
 }
-h1, h2, h3, label {
-    color: #e5e7eb;
+.card {
+    background-color:#161b22;
+    padding:15px;
+    border-radius:10px;
+    margin-bottom:15px;
 }
-.stTextInput input {
-    background-color: #020617;
-    color: white;
-}
-.info-box {
-    background-color: #020617;
-    border-left: 5px solid #3b82f6;
-    padding: 10px;
-    border-radius: 8px;
-    margin-top: 10px;
-}
-.good {color:#22c55e;}
-.bad {color:#ef4444;}
-.neutral {color:#e5e7eb;}
 </style>
 """, unsafe_allow_html=True)
+
+# ---------------- LOGO ----------------
+st.image("logolucky.jpg", width=200)
+
+st.markdown('<div class="big-title">🎲 Pronósticos Lucky</div>', unsafe_allow_html=True)
+st.caption("Análisis estadístico del TRIS (solo informativo)")
 
 # ---------------- CARGA DE DATOS ----------------
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv("Tris.csv")
+
+    # Crear número completo
+    df["NUMERO"] = (
+        df["R1"].astype(str)
+        + df["R2"].astype(str)
+        + df["R3"].astype(str)
+        + df["R4"].astype(str)
+        + df["R5"].astype(str)
+    )
+
     df["FECHA"] = pd.to_datetime(df["FECHA"], errors="coerce")
-    df["NUMERO"] = df["NUMERO"].astype(str).str.zfill(5)
     return df
 
 df = cargar_datos()
 
-# ---------------- FUNCIONES ----------------
-def extraer_modalidad(numero, modalidad):
-    if modalidad == "Número final":
-        return numero[-1]
-    if modalidad == "Número inicial":
-        return numero[0]
-    if modalidad == "Par final":
-        return numero[-2:]
-    if modalidad == "Par inicial":
-        return numero[:2]
-    if modalidad == "Directa 3":
-        return numero[-3:]
-    if modalidad == "Directa 4":
-        return numero[-4:]
-    if modalidad == "Directa 5":
-        return numero
-    return None
-
-def clasificar_caliente(conteo, promedio):
-    if conteo > promedio * 1.2:
-        return "🔥 Caliente", "good", "Sale más que el promedio histórico."
-    elif conteo < promedio * 0.8:
-        return "❄️ Frío", "bad", "Sale menos que el promedio histórico."
-    else:
-        return "⚪ Promedio", "neutral", "Tiene un comportamiento similar al resto."
-
-# ---------------- INTERFAZ ----------------
-st.title("🎲 Pronósticos Lucky")
-st.caption("Análisis estadístico del TRIS")
-
 st.success(f"Sorteos cargados correctamente: {len(df)}")
 
-numero_usuario = st.text_input("Ingresa el número").strip()
+# ---------------- INPUT USUARIO ----------------
+st.markdown("## 🔍 Analizar número")
+
+numero_usuario = st.text_input("Ingresa el número", "").strip()
+
 modalidad = st.selectbox(
     "Selecciona la modalidad",
     [
@@ -96,45 +74,92 @@ modalidad = st.selectbox(
     index=0
 )
 
+def extraer_numero(numero, modalidad):
+    if modalidad == "Par final":
+        return numero[-2:]
+    if modalidad == "Número final":
+        return numero[-1]
+    if modalidad == "Par inicial":
+        return numero[:2]
+    if modalidad == "Número inicial":
+        return numero[:1]
+    if modalidad == "Directa 3":
+        return numero[-3:]
+    if modalidad == "Directa 4":
+        return numero[-4:]
+    if modalidad == "Directa 5":
+        return numero.zfill(5)
+    return None
+
 # ---------------- ANÁLISIS ----------------
-if numero_usuario:
-    numero_usuario = numero_usuario.zfill(5)
-    valor = extraer_modalidad(numero_usuario, modalidad)
+if numero_usuario.isdigit() and len(numero_usuario) <= 5:
 
-    if valor:
-        if modalidad == "Directa 5":
-            serie = df["NUMERO"]
-        elif modalidad in ["Directa 4", "Directa 3"]:
-            n = int(modalidad[-1])
-            serie = df["NUMERO"].str[-n:]
-        elif modalidad == "Par final":
-            serie = df["NUMERO"].str[-2:]
-        elif modalidad == "Par inicial":
-            serie = df["NUMERO"].str[:2]
-        elif modalidad == "Número final":
-            serie = df["NUMERO"].str[-1]
-        elif modalidad == "Número inicial":
-            serie = df["NUMERO"].str[0]
+    objetivo = extraer_numero(numero_usuario.zfill(5), modalidad)
 
-        total_apariciones = (serie == valor).sum()
-        promedio = serie.value_counts().mean()
-
-        st.subheader("📊 Análisis estadístico")
-        st.write(f"**Apariciones históricas:** {total_apariciones}")
-
-        if total_apariciones > 0:
-            ultima = df[serie == valor].iloc[-1]
-            fecha = ultima["FECHA"].strftime("%d/%m/%Y")
-            sorteo = ultima["SORTEO"]
-            st.write(f"**Última aparición:** {fecha} (Sorteo #{sorteo})")
+    if objetivo:
+        if modalidad in ["Par final", "Número final", "Directa 3", "Directa 4"]:
+            serie = df["NUMERO"].str[-len(objetivo):]
+        elif modalidad in ["Par inicial", "Número inicial"]:
+            serie = df["NUMERO"].str[:len(objetivo)]
         else:
-            st.write("**Última aparición:** Nunca ha salido")
+            serie = df["NUMERO"]
 
-        estado, clase, texto = clasificar_caliente(total_apariciones, promedio)
-        st.markdown(
-            f"<div class='info-box {clase}'>{estado} — {texto}</div>",
-            unsafe_allow_html=True
+        apariciones = df[serie == objetivo]
+
+        total = len(apariciones)
+
+        st.markdown("## 📊 Análisis estadístico")
+
+        st.markdown(f"**Apariciones históricas:** {total}")
+
+        if total > 0:
+            ultima = apariciones.iloc[-1]
+            st.markdown(
+                f"**Última aparición:** Sorteo #{ultima['CONCURSO']} "
+                f"({ultima['FECHA'].date()})"
+            )
+        else:
+            st.markdown("**Última aparición:** Nunca ha salido")
+
+        # --------- CALIENTE / FRÍO ----------
+        promedio = len(df) / len(serie.unique())
+        ratio = total / promedio if promedio > 0 else 0
+
+        if ratio >= 1.2:
+            st.success("🔥 Número caliente — aparece más que el promedio histórico.")
+        elif ratio <= 0.8:
+            st.info("❄️ Número frío — aparece menos que el promedio histórico.")
+        else:
+            st.warning("⚪ Comportamiento promedio — similar al resto.")
+
+        st.caption(
+            "Caliente = ≥20% más apariciones que el promedio | "
+            "Frío = ≥20% menos apariciones"
         )
 
-        st.caption("Análisis basado en comportamiento histórico del TRIS. No garantiza resultados.")
+        # --------- COMPARACIONES ----------
+        st.markdown("## 🔄 Números similares")
+        similares = []
+        try:
+            n = int(objetivo)
+            for i in range(-2, 3):
+                if i != 0:
+                    similares.append(str(n + i).zfill(len(objetivo)))
+        except:
+            pass
 
+        for s in similares:
+            cnt = (serie == s).sum()
+            st.markdown(f"- {s}: {cnt} apariciones")
+
+        # --------- AVISO LEGAL ----------
+        st.divider()
+        st.caption(
+            "⚠️ Este análisis es únicamente estadístico e informativo. "
+            "No garantiza premios ni resultados."
+        )
+
+else:
+    st.info("Ingresa un número válido (1 a 5 dígitos).")
+
+st.markdown("🍀 **Pronósticos Lucky** — suerte informada")
