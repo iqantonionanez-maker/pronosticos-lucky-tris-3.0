@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-# ---------------- CONFIGURACIÓN ----------------
+# ---------------- CONFIG ----------------
 st.set_page_config(
     page_title="Pronósticos Lucky",
     page_icon="🍀",
@@ -10,29 +10,14 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-body {
-    background-color: #0e1117;
-}
-.card {
-    background-color:#161b22;
-    padding:15px;
-    border-radius:10px;
-    margin-bottom:15px;
-}
-.center {
-    display: flex;
-    justify-content: center;
-}
-.title {
-    font-size:32px;
-    font-weight:bold;
-    color:#2ecc71;
-    text-align:center;
-}
+body {background-color:#0e1117;}
+.card {background-color:#161b22;padding:15px;border-radius:10px;}
+.center {display:flex;justify-content:center;}
+.title {font-size:32px;font-weight:bold;color:#2ecc71;text-align:center;}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- LOGO CENTRADO ----------------
+# ---------------- LOGO ----------------
 st.markdown('<div class="center">', unsafe_allow_html=True)
 st.image("logolucky.jpg", width=220)
 st.markdown('</div>', unsafe_allow_html=True)
@@ -57,12 +42,10 @@ def cargar_datos():
     return df
 
 df = cargar_datos()
-
 st.success(f"Sorteos cargados correctamente: {len(df)}")
 
 # ---------------- INPUT ----------------
 st.markdown("## 🔍 Analizar número")
-
 numero_usuario = st.text_input("Ingresa el número", "").strip()
 
 modalidad = st.selectbox(
@@ -79,8 +62,8 @@ modalidad = st.selectbox(
     index=0
 )
 
+# ---------------- LÓGICA CORRECTA ----------------
 def obtener_objetivo(numero, modalidad):
-    numero = numero.zfill(5)
     if modalidad == "Par final":
         return numero[-2:]
     if modalidad == "Número final":
@@ -94,19 +77,17 @@ def obtener_objetivo(numero, modalidad):
     if modalidad == "Directa 4":
         return numero[-4:]
     if modalidad == "Directa 5":
-        return numero
+        return numero.zfill(5)
     return None
 
 # ---------------- ANÁLISIS ----------------
 if numero_usuario.isdigit() and 1 <= len(numero_usuario) <= 5:
 
-    numero_base = numero_usuario.zfill(5)
     objetivo = obtener_objetivo(numero_usuario, modalidad)
 
     st.markdown(
-        f"🧩 **Número base analizado:** `{numero_base}`  \n"
         f"🎯 **Modalidad:** {modalidad}  \n"
-        f"🔎 **Parte analizada:** `{objetivo}`"
+        f"🔎 **Número analizado:** `{objetivo}`"
     )
 
     if modalidad in ["Par final", "Número final", "Directa 3", "Directa 4"]:
@@ -136,16 +117,11 @@ if numero_usuario.isdigit() and 1 <= len(numero_usuario) <= 5:
     ratio = total / promedio if promedio > 0 else 0
 
     if ratio >= 1.2:
-        st.success("🔥 Número caliente — aparece más que el promedio histórico.")
+        st.success("🔥 Número caliente — aparece ≥20% más que el promedio histórico.")
     elif ratio <= 0.8:
-        st.info("❄️ Número frío — aparece menos que el promedio histórico.")
+        st.info("❄️ Número frío — aparece ≥20% menos que el promedio histórico.")
     else:
         st.warning("⚪ Comportamiento promedio — similar al resto.")
-
-    st.caption(
-        "Caliente = ≥20% más apariciones | "
-        "Frío = ≥20% menos apariciones"
-    )
 
     # -------- SIMILARES --------
     st.markdown("## 🔄 Números similares")
