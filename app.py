@@ -1,217 +1,180 @@
 import streamlit as st
 import pandas as pd
-from datetime import timedelta
+from datetime import datetime
 
-# =====================================================
-# CONFIGURACIÓN GENERAL
-# =====================================================
-st.set_page_config("Pronósticos Lucky TRIS", layout="wide")
+# ---------------- CONFIGURACIÓN ----------------
+st.set_page_config(page_title="Pronósticos Lucky", layout="centered")
 
-st.markdown("""
-<style>
-body { background-color:#1f7a4d; }
-.block-container { padding:2rem; }
-h1,h2,h3,h4 { color:#000000; }
-p,span,li,label { color:#000000; font-size:16px; }
-.card {
-    background:#e8f4ec;
-    padding:16px;
-    border-radius:14px;
-    margin-bottom:14px;
-    border:1px solid #b6d7c9;
-}
-.kpi { font-weight:700; }
-.sep { height:8px; }
-</style>
-""", unsafe_allow_html=True)
-
-# =====================================================
-# CARGA DE DATOS (ADAPTADA A TU CSV)
-# =====================================================
-@st.cache_data
-def cargar():
-    df = pd.read_csv("Tris.csv")
-    df.columns = df.columns.str.upper().str.strip()
-
-    # Fecha
-    df["FECHA"] = pd.to_datetime(df["FECHA"], dayfirst=True, errors="coerce")
-    df = df.dropna(subset=["FECHA"])
-
-    # Sorteo
-    if "CONCURSO" in df.columns:
-        df = df.rename(columns={"CONCURSO": "SORTEO"})
-    if "SORTEO" not in df.columns:
-        df["SORTEO"] = range(1, len(df)+1)
-
-    # Dígitos
-    for c in ["R1","R2","R3","R4","R5"]:
-        if c not in df.columns:
-            df[c] = "0"
-        df[c] = df[c].fillna("0").astype(str).str.replace(".0","", regex=False)
-
-    df["NUMERO"] = df["R1"]+df["R2"]+df["R3"]+df["R4"]+df["R5"]
-
-    # Modalidades
-    df["NUM_FINAL"] = df["NUMERO"].str[-1]
-    df["NUM_INICIAL"] = df["NUMERO"].str[0]
-    df["PAR_FINAL"] = df["NUMERO"].str[-2:]
-    df["PAR_INICIAL"] = df["NUMERO"].str[:2]
-    df["D3"] = df["NUMERO"].str[-3:]
-    df["D4"] = df["NUMERO"].str[-4:]
-    df["D5"] = df["NUMERO"]
-
-    return df.sort_values("SORTEO")
-
-df = cargar()
-
-# =====================================================
-# PREMIOS OFICIALES TRIS
-# =====================================================
-PREMIOS = {
-    "NUM": 5,
-    "PAR": 50,
-    "D3": 500,
-    "D4": 5000,
-    "D5": 50000
-}
-MULTIPLICADOR_MAX = 4
-
-# =====================================================
-# FUNCIONES
-# =====================================================
-def analizar(col, val):
-    d = df[df[col] == val]
-    if d.empty:
-        return None
-    ultimo = d.iloc[-1]["SORTEO"]
-    sin = int(df["SORTEO"].max() - ultimo)
-    prom = d["SORTEO"].diff().mean()
-    ult100 = df.tail(100)
-    v100 = int((ult100[col] == val).sum())
-    return sin, prom, v100
-
-def explicar(sin, prom, v100):
-    if v100 >= 3:
-        return ("🔥 Caliente",
-                f"ha salido {v100} veces en los últimos 100 sorteos, indicando actividad reciente.")
-    if prom == prom and sin >= prom:
-        return ("❄️ Atrasado",
-                f"sale en promedio cada {int(prom)} sorteos y lleva {sin} sorteos sin salir.")
-    return ("⚪ Normal",
-            "su frecuencia es similar al promedio histórico.")
-
-# =====================================================
-# INTERFAZ
-# =====================================================
+# ---------------- LOGO ----------------
+st.image("logolucky.jpg", width=200)
 st.title("🎲 Pronósticos Lucky")
-st.caption("Análisis estadístico del TRIS basado en historial real")
+st.subheader("Análisis estadístico del TRIS")
+
+# ---------------- CARGA DE DATOS ----------------
+@st.cache_data
+def cargar_datos():
+    df = pd.read_csv("Tris.csv")
+
+    df.columns = [c.strip().upper() for c in df.columns]
+
+    df["FECHA"] = pd.to_datetime(df["FECHA"], errors="coerce")
+
+    # Construimos número ganador de 5 dígitos
+    df["NUMERO"] = (
+        df["R1"].astype(str)
+        + df["R2"].astype(str)
+        + df["R3"].astype(str)
+        + df["R4"].astype(str)
+        + df["R5"].astype(str)
+    )
+
+    return df.dropna(subset=["NUMERO"])
+
+df = cargar_datos()
 st.success(f"Sorteos cargados correctamente: {len(df)}")
 
-st.markdown("""
-**Leyenda:**  
-🔥 Caliente = aparece más que el promedio | ❄️ Frío/Atrasado = aparece menos que el promedio | ⚪ Normal = comportamiento promedio
-""")
+# ---------------- FUNCIONES AUXILIARES ----------------
+def ultima_aparicion(df, columna, valor):
+    apariciones = df[df[columna] == valor]
+    if apariciones.empty:
+        return "Nunca ha salido"
+    fila = apariciones.iloc[-1]
+    return f"Sorteo #{fila['SORTEO']} – {fila['FECHA'].strftime('%d/%m/%Y')}"
 
-# Selecciones
-tipo = st.selectbox(
-    "🎯 Tipo de jugada",
-    ["Par final","Par inicial","Número final","Número inicial","Directa 3","Directa 4","Directa 5"],
-    index=0
+def frecuencia(df, columna, valor):
+    return df[df[columna] == valor].shape[0]
+
+def estado_caliente(freq, promedio):
+    if freq > promedio * 1.2:
+        return "🔥 Número caliente — Sale más que el promedio histórico."
+    elif freq < promedio * 0.8:
+        return "❄️ Número frío — Sale menos que el promedio histórico."
+    else:
+        return "⚪ Comportamiento promedio — Frecuencia similar al resto."
+
+def top_numeros(df, columna, top=5, asc=False):
+    return (
+        df[columna]
+        .value_counts()
+        .sort_values(ascending=asc)
+        .head(top)
+        .index.tolist()
+    )
+
+def escalera(num):
+    return "".join(sorted(num)) in ["012","123","234","345","456","567","678","789"]
+
+def piramide(num):
+    return len(set(num)) == 1
+
+# ---------------- INPUT USUARIO ----------------
+numero_usuario = st.text_input("Ingresa el número", max_chars=5).strip()
+
+modalidad = st.selectbox(
+    "Selecciona la modalidad",
+    [
+        "Par final",
+        "Número final",
+        "Par inicial",
+        "Número inicial",
+        "Directa 3",
+        "Directa 4",
+        "Directa 5",
+    ],
 )
 
-num = st.text_input("🔍 Ingresa tu número")
-apuesta = st.number_input("💰 Apuesta base ($)", min_value=1, value=1)
-
-use_mult = st.checkbox("Activar Tris Multiplicador")
-monto_mult = st.number_input(
-    "💰 Monto para multiplicador ($)",
-    min_value=0,
-    value=0,
-    disabled=not use_mult
-)
+# ---------------- MAPEO DE MODALIDADES ----------------
+df["PAR_FINAL"] = df["NUMERO"].str[-2:]
+df["PAR_INICIAL"] = df["NUMERO"].str[:2]
+df["NUM_FINAL"] = df["NUMERO"].str[-1]
+df["NUM_INICIAL"] = df["NUMERO"].str[:1]
+df["D3F"] = df["NUMERO"].str[-3:]
+df["D3I"] = df["NUMERO"].str[:3]
+df["D4F"] = df["NUMERO"].str[-4:]
+df["D4I"] = df["NUMERO"].str[:4]
 
 mapa = {
-    "Número final": ("NUM_FINAL","NUM",1),
-    "Número inicial": ("NUM_INICIAL","NUM",1),
-    "Par final": ("PAR_FINAL","PAR",2),
-    "Par inicial": ("PAR_INICIAL","PAR",2),
-    "Directa 3": ("D3","D3",3),
-    "Directa 4": ("D4","D4",4),
-    "Directa 5": ("D5","D5",5)
+    "Par final": "PAR_FINAL",
+    "Número final": "NUM_FINAL",
+    "Par inicial": "PAR_INICIAL",
+    "Número inicial": "NUM_INICIAL",
+    "Directa 3": ["D3F", "D3I"],
+    "Directa 4": ["D4F", "D4I"],
+    "Directa 5": "NUMERO",
 }
 
-# =====================================================
-# ANÁLISIS PRINCIPAL
-# =====================================================
-if num.isdigit() and tipo in mapa:
-    col_db, key, largo = mapa[tipo]
-    if len(num) != largo:
-        st.error(f"{tipo} requiere exactamente {largo} dígito(s).")
-        st.stop()
+# ---------------- ANÁLISIS ----------------
+if numero_usuario:
+    st.divider()
+    st.subheader("📊 Análisis estadístico")
 
-    st.header("📊 Análisis de tu número")
-    r = analizar(col_db, num)
-    if not r:
-        st.warning("Este número no tiene apariciones históricas.")
+    if modalidad in ["Directa 3", "Directa 4"]:
+        resultados = []
+        for col in mapa[modalidad]:
+            freq = frecuencia(df, col, numero_usuario)
+            promedio = df[col].value_counts().mean()
+            resultados.append((col, freq, promedio))
+
+        total_freq = sum(r[1] for r in resultados)
+        promedio = sum(r[2] for r in resultados) / len(resultados)
+
+        st.write(f"Apariciones históricas: {total_freq}")
+        st.write(estado_caliente(total_freq, promedio))
+
     else:
-        sin, prom, v100 = r
-        estado, motivo = explicar(sin, prom, v100)
-        st.markdown(f"""
-<div class="card">
-<b>{estado}</b><br>
-{motivo}<br>
-<b>Sorteos sin salir:</b> {sin}
-</div>
-""", unsafe_allow_html=True)
+        col = mapa[modalidad]
+        freq = frecuencia(df, col, numero_usuario)
+        promedio = df[col].value_counts().mean()
 
-    # =================================================
-    # PREMIO MÁXIMO (DESGLOSE CORRECTO)
-    # =================================================
-    st.header("💰 Premio máximo por jugada")
-    premio_base = PREMIOS[key] * apuesta
-    premio_mult = PREMII = 0
-    if use_mult and monto_mult > 0:
-        premio_mult = monto_mult * PREMIOS[key] * MULTIPLICADOR_MAX
-    total = premio_base + premio_mult
+        st.write(f"Apariciones históricas: {freq}")
+        st.write(f"Última aparición: {ultima_aparicion(df, col, numero_usuario)}")
+        st.write(estado_caliente(freq, promedio))
 
-    st.markdown(f"""
-<div class="card">
-<b>Premio base:</b> ${premio_base:,}<br>
-<b>Premio con multiplicador:</b> ${premio_mult:,}<br>
-<hr>
-<b>Total máximo posible:</b> ${total:,}
-</div>
-""", unsafe_allow_html=True)
+    # ---------------- ESCALERA Y PIRÁMIDE (RECOMENDACIÓN) ----------------
+    st.divider()
+    st.subheader("🔮 Recomendaciones históricas")
 
-    # =================================================
-    # RECOMENDACIÓN LUCKY (5 OPCIONES, ANALIZADAS)
-    # =================================================
-    st.header("🍀 Recomendación Lucky (ordenadas por oportunidad)")
+    ult_mes = df.tail(300)
 
-    candidatos = []
-    for t,(c,k,l) in mapa.items():
-        if len(num) >= l:
-            val = num[-l:]
-            rr = analizar(c, val)
-            if rr:
-                sin,p,v100 = rr
-                score = (v100*3) + max(0, (sin - (p if p==p else 0)))
-                candidatos.append((score, t, val, sin, p, v100, k))
+    esc = [n for n in ult_mes["NUMERO"] if escalera(n)]
+    pir = [n for n in ult_mes["NUMERO"] if piramide(n)]
 
-    candidatos = sorted(candidatos, reverse=True)[:5]
+    st.write("🔢 Escaleras recientes:")
+    if esc:
+        for n in esc[:5]:
+            st.write(f"- {n} ({ultima_aparicion(df, 'NUMERO', n)})")
+    else:
+        st.write("No se detectaron escaleras recientes.")
 
-    for i,(s,t,v,sin,p,v100,k) in enumerate(candidatos, start=1):
-        estado, motivo = explicar(sin, p, v100)
-        st.markdown(f"""
-<div class="card">
-<b>{i}. {t} {v}</b><br>
-{estado}<br>
-<b>Motivo:</b> {motivo}<br>
-<b>Promedio histórico:</b> {int(p) if p==p else '-'} sorteos | <b>Sin salir:</b> {sin}<br>
-<b>Premio por $1:</b> ${PREMIOS[k]:,}
-</div>
-""", unsafe_allow_html=True)
+    st.write("🔺 Pirámides recientes:")
+    if pir:
+        for n in pir[:5]:
+            st.write(f"- {n} ({ultima_aparicion(df, 'NUMERO', n)})")
+    else:
+        st.write("No se detectaron pirámides recientes.")
 
-    st.caption("Pronósticos Lucky 🍀 — análisis estadístico, no garantiza premio.")
-else:
-    st.info("Ingresa un número válido para comenzar.")
+    # ---------------- TOP 5 POR MODALIDAD ----------------
+    st.divider()
+    st.subheader("🔥❄️ Top 5 números por modalidad")
+
+    for nombre, columna in {
+        "Directa 5": "NUMERO",
+        "Directa 4 final": "D4F",
+        "Directa 3 final": "D3F",
+        "Par final": "PAR_FINAL",
+        "Par inicial": "PAR_INICIAL",
+        "Número final": "NUM_FINAL",
+        "Número inicial": "NUM_INICIAL",
+    }.items():
+
+        calientes = top_numeros(df, columna, 5)
+        frios = top_numeros(df, columna, 5, asc=True)
+
+        st.write(f"**{nombre}**")
+        st.write("🔥 Calientes:", ", ".join(calientes))
+        st.write("❄️ Fríos:", ", ".join(frios))
+        st.write("")
+
+    st.divider()
+    st.caption("Análisis basado en comportamiento histórico del TRIS.")
+    st.success("Pronósticos Lucky 🍀")
