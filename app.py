@@ -2,74 +2,86 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-# ---------------- CONFIGURACIÓN ----------------
-st.set_page_config(page_title="Pronósticos Lucky", layout="centered")
+# ---------------- CONFIGURACIÓN VISUAL ----------------
+st.set_page_config(
+    page_title="Pronósticos Lucky",
+    page_icon="🎲",
+    layout="centered"
+)
 
-# ---------------- LOGO ----------------
-st.image("logolucky.jpg", width=200)
-st.title("🎲 Pronósticos Lucky")
-st.subheader("Análisis estadístico del TRIS")
+st.markdown("""
+<style>
+body {
+    background-color: #0f172a;
+}
+.block-container {
+    background-color: #020617;
+    padding: 2rem;
+    border-radius: 12px;
+}
+h1, h2, h3, label {
+    color: #e5e7eb;
+}
+.stTextInput input {
+    background-color: #020617;
+    color: white;
+}
+.info-box {
+    background-color: #020617;
+    border-left: 5px solid #3b82f6;
+    padding: 10px;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+.good {color:#22c55e;}
+.bad {color:#ef4444;}
+.neutral {color:#e5e7eb;}
+</style>
+""", unsafe_allow_html=True)
 
 # ---------------- CARGA DE DATOS ----------------
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv("Tris.csv")
-
-    df.columns = [c.strip().upper() for c in df.columns]
-
     df["FECHA"] = pd.to_datetime(df["FECHA"], errors="coerce")
-
-    # Construimos número ganador de 5 dígitos
-    df["NUMERO"] = (
-        df["R1"].astype(str)
-        + df["R2"].astype(str)
-        + df["R3"].astype(str)
-        + df["R4"].astype(str)
-        + df["R5"].astype(str)
-    )
-
-    return df.dropna(subset=["NUMERO"])
+    df["NUMERO"] = df["NUMERO"].astype(str).str.zfill(5)
+    return df
 
 df = cargar_datos()
+
+# ---------------- FUNCIONES ----------------
+def extraer_modalidad(numero, modalidad):
+    if modalidad == "Número final":
+        return numero[-1]
+    if modalidad == "Número inicial":
+        return numero[0]
+    if modalidad == "Par final":
+        return numero[-2:]
+    if modalidad == "Par inicial":
+        return numero[:2]
+    if modalidad == "Directa 3":
+        return numero[-3:]
+    if modalidad == "Directa 4":
+        return numero[-4:]
+    if modalidad == "Directa 5":
+        return numero
+    return None
+
+def clasificar_caliente(conteo, promedio):
+    if conteo > promedio * 1.2:
+        return "🔥 Caliente", "good", "Sale más que el promedio histórico."
+    elif conteo < promedio * 0.8:
+        return "❄️ Frío", "bad", "Sale menos que el promedio histórico."
+    else:
+        return "⚪ Promedio", "neutral", "Tiene un comportamiento similar al resto."
+
+# ---------------- INTERFAZ ----------------
+st.title("🎲 Pronósticos Lucky")
+st.caption("Análisis estadístico del TRIS")
+
 st.success(f"Sorteos cargados correctamente: {len(df)}")
 
-# ---------------- FUNCIONES AUXILIARES ----------------
-def ultima_aparicion(df, columna, valor):
-    apariciones = df[df[columna] == valor]
-    if apariciones.empty:
-        return "Nunca ha salido"
-    fila = apariciones.iloc[-1]
-    return f"Sorteo #{fila['SORTEO']} – {fila['FECHA'].strftime('%d/%m/%Y')}"
-
-def frecuencia(df, columna, valor):
-    return df[df[columna] == valor].shape[0]
-
-def estado_caliente(freq, promedio):
-    if freq > promedio * 1.2:
-        return "🔥 Número caliente — Sale más que el promedio histórico."
-    elif freq < promedio * 0.8:
-        return "❄️ Número frío — Sale menos que el promedio histórico."
-    else:
-        return "⚪ Comportamiento promedio — Frecuencia similar al resto."
-
-def top_numeros(df, columna, top=5, asc=False):
-    return (
-        df[columna]
-        .value_counts()
-        .sort_values(ascending=asc)
-        .head(top)
-        .index.tolist()
-    )
-
-def escalera(num):
-    return "".join(sorted(num)) in ["012","123","234","345","456","567","678","789"]
-
-def piramide(num):
-    return len(set(num)) == 1
-
-# ---------------- INPUT USUARIO ----------------
-numero_usuario = st.text_input("Ingresa el número", max_chars=5).strip()
-
+numero_usuario = st.text_input("Ingresa el número").strip()
 modalidad = st.selectbox(
     "Selecciona la modalidad",
     [
@@ -79,102 +91,50 @@ modalidad = st.selectbox(
         "Número inicial",
         "Directa 3",
         "Directa 4",
-        "Directa 5",
+        "Directa 5"
     ],
+    index=0
 )
-
-# ---------------- MAPEO DE MODALIDADES ----------------
-df["PAR_FINAL"] = df["NUMERO"].str[-2:]
-df["PAR_INICIAL"] = df["NUMERO"].str[:2]
-df["NUM_FINAL"] = df["NUMERO"].str[-1]
-df["NUM_INICIAL"] = df["NUMERO"].str[:1]
-df["D3F"] = df["NUMERO"].str[-3:]
-df["D3I"] = df["NUMERO"].str[:3]
-df["D4F"] = df["NUMERO"].str[-4:]
-df["D4I"] = df["NUMERO"].str[:4]
-
-mapa = {
-    "Par final": "PAR_FINAL",
-    "Número final": "NUM_FINAL",
-    "Par inicial": "PAR_INICIAL",
-    "Número inicial": "NUM_INICIAL",
-    "Directa 3": ["D3F", "D3I"],
-    "Directa 4": ["D4F", "D4I"],
-    "Directa 5": "NUMERO",
-}
 
 # ---------------- ANÁLISIS ----------------
 if numero_usuario:
-    st.divider()
-    st.subheader("📊 Análisis estadístico")
+    numero_usuario = numero_usuario.zfill(5)
+    valor = extraer_modalidad(numero_usuario, modalidad)
 
-    if modalidad in ["Directa 3", "Directa 4"]:
-        resultados = []
-        for col in mapa[modalidad]:
-            freq = frecuencia(df, col, numero_usuario)
-            promedio = df[col].value_counts().mean()
-            resultados.append((col, freq, promedio))
+    if valor:
+        if modalidad == "Directa 5":
+            serie = df["NUMERO"]
+        elif modalidad in ["Directa 4", "Directa 3"]:
+            n = int(modalidad[-1])
+            serie = df["NUMERO"].str[-n:]
+        elif modalidad == "Par final":
+            serie = df["NUMERO"].str[-2:]
+        elif modalidad == "Par inicial":
+            serie = df["NUMERO"].str[:2]
+        elif modalidad == "Número final":
+            serie = df["NUMERO"].str[-1]
+        elif modalidad == "Número inicial":
+            serie = df["NUMERO"].str[0]
 
-        total_freq = sum(r[1] for r in resultados)
-        promedio = sum(r[2] for r in resultados) / len(resultados)
+        total_apariciones = (serie == valor).sum()
+        promedio = serie.value_counts().mean()
 
-        st.write(f"Apariciones históricas: {total_freq}")
-        st.write(estado_caliente(total_freq, promedio))
+        st.subheader("📊 Análisis estadístico")
+        st.write(f"**Apariciones históricas:** {total_apariciones}")
 
-    else:
-        col = mapa[modalidad]
-        freq = frecuencia(df, col, numero_usuario)
-        promedio = df[col].value_counts().mean()
+        if total_apariciones > 0:
+            ultima = df[serie == valor].iloc[-1]
+            fecha = ultima["FECHA"].strftime("%d/%m/%Y")
+            sorteo = ultima["SORTEO"]
+            st.write(f"**Última aparición:** {fecha} (Sorteo #{sorteo})")
+        else:
+            st.write("**Última aparición:** Nunca ha salido")
 
-        st.write(f"Apariciones históricas: {freq}")
-        st.write(f"Última aparición: {ultima_aparicion(df, col, numero_usuario)}")
-        st.write(estado_caliente(freq, promedio))
+        estado, clase, texto = clasificar_caliente(total_apariciones, promedio)
+        st.markdown(
+            f"<div class='info-box {clase}'>{estado} — {texto}</div>",
+            unsafe_allow_html=True
+        )
 
-    # ---------------- ESCALERA Y PIRÁMIDE (RECOMENDACIÓN) ----------------
-    st.divider()
-    st.subheader("🔮 Recomendaciones históricas")
+        st.caption("Análisis basado en comportamiento histórico del TRIS. No garantiza resultados.")
 
-    ult_mes = df.tail(300)
-
-    esc = [n for n in ult_mes["NUMERO"] if escalera(n)]
-    pir = [n for n in ult_mes["NUMERO"] if piramide(n)]
-
-    st.write("🔢 Escaleras recientes:")
-    if esc:
-        for n in esc[:5]:
-            st.write(f"- {n} ({ultima_aparicion(df, 'NUMERO', n)})")
-    else:
-        st.write("No se detectaron escaleras recientes.")
-
-    st.write("🔺 Pirámides recientes:")
-    if pir:
-        for n in pir[:5]:
-            st.write(f"- {n} ({ultima_aparicion(df, 'NUMERO', n)})")
-    else:
-        st.write("No se detectaron pirámides recientes.")
-
-    # ---------------- TOP 5 POR MODALIDAD ----------------
-    st.divider()
-    st.subheader("🔥❄️ Top 5 números por modalidad")
-
-    for nombre, columna in {
-        "Directa 5": "NUMERO",
-        "Directa 4 final": "D4F",
-        "Directa 3 final": "D3F",
-        "Par final": "PAR_FINAL",
-        "Par inicial": "PAR_INICIAL",
-        "Número final": "NUM_FINAL",
-        "Número inicial": "NUM_INICIAL",
-    }.items():
-
-        calientes = top_numeros(df, columna, 5)
-        frios = top_numeros(df, columna, 5, asc=True)
-
-        st.write(f"**{nombre}**")
-        st.write("🔥 Calientes:", ", ".join(calientes))
-        st.write("❄️ Fríos:", ", ".join(frios))
-        st.write("")
-
-    st.divider()
-    st.caption("Análisis basado en comportamiento histórico del TRIS.")
-    st.success("Pronósticos Lucky 🍀")
