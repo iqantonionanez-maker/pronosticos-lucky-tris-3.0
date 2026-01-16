@@ -1,22 +1,22 @@
 name: Actualizar Tris automáticamente
 
 on:
-  workflow_dispatch: # Permite ejecutar manualmente
+  workflow_dispatch:  # Permite ejecutar manualmente
 
 jobs:
   update_tris:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Hacer checkout del repositorio
+      # 1️⃣ Checkout del repositorio
       - name: Checkout repository
         uses: actions/checkout@v3
 
       # 2️⃣ Configurar Python
-      - name: Configurar Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'  # Cambia si tu app usa otra versión
+          python-version: '3.11'
 
       # 3️⃣ Instalar dependencias
       - name: Instalar dependencias
@@ -28,21 +28,21 @@ jobs:
       - name: Ejecutar actualizar_tris.py
         run: python actualizar_tris.py
 
-      # 5️⃣ Configurar Git para commits
+      # 5️⃣ Configurar Git
       - name: Configurar Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # 6️⃣ Traer última versión de main para evitar conflictos
-      - name: Asegurar última versión
+      # 6️⃣ Traer última versión de main (evita conflictos)
+      - name: Traer última versión
         run: git pull --rebase origin main
 
-      # 7️⃣ Hacer commit y push seguro
+      # 7️⃣ Commit y push de cambios (seguro)
       - name: Commit y push cambios
         run: |
           git add Tris.csv
-          git commit -m "Actualizar Tris automáticamente" || echo "No hay cambios para commit"
+          git diff --cached --quiet || git commit -m "Actualizar Tris automáticamente"
           git push origin main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
