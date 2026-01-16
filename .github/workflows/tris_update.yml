@@ -1,31 +1,48 @@
-name: Actualización automática TRIS
+name: Actualizar Tris automáticamente
 
 on:
-  schedule:
-    - cron: "5,35 * * * *"
-  workflow_dispatch:
+  workflow_dispatch: # Permite ejecutar manualmente
 
 jobs:
-  update:
+  update_tris:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # 1️⃣ Hacer checkout del repositorio
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - uses: actions/setup-python@v5
+      # 2️⃣ Configurar Python
+      - name: Configurar Python
+        uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: '3.11'  # Cambia si tu app usa otra versión
 
+      # 3️⃣ Instalar dependencias
       - name: Instalar dependencias
-        run: pip install pandas requests beautifulsoup4
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Ejecutar bot
+      # 4️⃣ Ejecutar script de actualización
+      - name: Ejecutar actualizar_tris.py
         run: python actualizar_tris.py
 
-      - name: Guardar cambios
+      # 5️⃣ Configurar Git para commits
+      - name: Configurar Git
         run: |
-          git config --global user.name "TrisBot"
-          git config --global user.email "bot@tris.app"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # 6️⃣ Traer última versión de main para evitar conflictos
+      - name: Asegurar última versión
+        run: git pull --rebase origin main
+
+      # 7️⃣ Hacer commit y push seguro
+      - name: Commit y push cambios
+        run: |
           git add Tris.csv
-          git commit -m "Actualización automática TRIS" || echo "Sin cambios"
-          git push
+          git commit -m "Actualizar Tris automáticamente" || echo "No hay cambios para commit"
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
