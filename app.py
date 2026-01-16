@@ -27,33 +27,20 @@ def load_data():
 df = load_data()
 total_sorteos = df["CONCURSO"].nunique()
 
-# ---------------- PREMIOS OFICIALES ----------------
-premios_tris = {
-    "Directa 5": 50000,
-    "Directa 4": 5000,
-    "Directa 3": 500,
-    "Par final": 50,
-    "Par inicial": 50,
-    "Número final": 5,
-    "Número inicial": 5
-}
-
-premios_multiplicador = {
-    "Directa 5": 200000,
-    "Directa 4": 20000,
-    "Directa 3": 2000,
-    "Par final": 200,
-    "Par inicial": 200,
-    "Número final": 20,
-    "Número inicial": 20
-}
-
 # ---------------- SELECCIÓN DE MODALIDAD ----------------
 st.subheader("🎯 Modalidad a analizar")
 
 modalidad = st.selectbox(
     "Selecciona la modalidad:",
-    list(premios_tris.keys())
+    [
+        "Directa 5",
+        "Directa 4",
+        "Directa 3",
+        "Par inicial",
+        "Par final",
+        "Número inicial",
+        "Número final"
+    ]
 )
 
 # ---------------- EXTRACCIÓN DE JUGADA ----------------
@@ -79,39 +66,67 @@ def extraer_valor(row):
 df["JUGADA"] = df.apply(extraer_valor, axis=1)
 df_modalidad = df.dropna(subset=["JUGADA"])
 
-# ---------------- ENTRADAS DEL USUARIO ----------------
-st.subheader("📊 Análisis estadístico y cálculo de premio")
+# ---------------- ANÁLISIS PRINCIPAL ----------------
+st.subheader("📊 Análisis estadístico")
 
 seleccion = st.text_input("Ingresa el número a analizar:")
-apuesta_tris = st.number_input("Apuesta TRIS ($)", min_value=0, step=1, value=1)
-apuesta_multi = st.number_input("Apuesta Multiplicador ($)", min_value=0, step=1, value=0)
 
 if seleccion and seleccion.isdigit():
     data = df_modalidad[df_modalidad["JUGADA"] == seleccion]
+
     apariciones = len(data)
 
     if apariciones > 0:
         ultima_fecha = data["FECHA"].max()
         ultimo_concurso = data["CONCURSO"].max()
         sorteos_sin_salir = df_modalidad["CONCURSO"].max() - ultimo_concurso
+        promedio = total_sorteos / apariciones
+
+        if sorteos_sin_salir >= promedio * 1.2:
+            estado = "🔥 Caliente"
+        elif sorteos_sin_salir <= promedio * 0.8:
+            estado = "❄️ Frío"
+        else:
+            estado = "⚪ Promedio"
     else:
         ultima_fecha = None
-        sorteos_sin_salir = "N/A"
+        sorteos_sin_salir = None
+        promedio = None
+        estado = "Sin datos"
 
-    st.write(f"**Apariciones:** {apariciones} de {total_sorteos} sorteos analizados")
+    st.write(f"**Apariciones:** {apariciones}")
     st.write(f"**Última vez:** {ultima_fecha.date() if ultima_fecha is not None else 'Nunca'}")
-    st.write(f"**Sorteos sin salir:** {sorteos_sin_salir}")
+    st.write(f"**Sorteos sin salir:** {sorteos_sin_salir if sorteos_sin_salir is not None else 'N/A'}")
+    st.write(f"**Promedio histórico:** {round(promedio, 2) if promedio else 'N/A'}")
+    st.write(f"**Clasificación:** {estado}")
 
-    # ---------------- CÁLCULO DE PREMIO ----------------
-    st.markdown("### 💰 Cálculo del premio máximo (oficial TRIS)")
+# ---------------- NUEVO BLOQUE: CÁLCULO DE PREMIOS ----------------
+st.subheader("💰 Cálculo de premio máximo posible")
 
-    premio_tris = apuesta_tris * premios_tris[modalidad]
-    premio_multi = apuesta_multi * premios_multiplicador[modalidad]
-    premio_total = premio_tris + premio_multi
+apuesta = st.number_input("Monto de la apuesta ($)", min_value=1, step=1)
+multiplicador = st.number_input("Monto del multiplicador ($)", min_value=0, step=1)
 
-    st.write(f"Premio TRIS: **${premio_tris:,.2f}**")
-    st.write(f"Premio Multiplicador: **${premio_multi:,.2f}**")
-    st.success(f"🏆 **Premio máximo total: ${premio_total:,.2f}**")
+tabla_pagos = {
+    "Directa 5": {"base": 50000, "multi": 200000},
+    "Directa 4": {"base": 5000, "multi": 20000},
+    "Directa 3": {"base": 500, "multi": 2000},
+    "Par inicial": {"base": 50, "multi": 200},
+    "Par final": {"base": 50, "multi": 200},
+    "Número inicial": {"base": 5, "multi": 20},
+    "Número final": {"base": 5, "multi": 20}
+}
+
+if seleccion and seleccion.isdigit():
+    pago_base = tabla_pagos[modalidad]["base"] * apuesta
+    pago_multi = tabla_pagos[modalidad]["multi"] * multiplicador
+    total = pago_base + pago_multi
+
+    st.success("🎯 **Desglose de premios**")
+    st.write(f"**Modalidad:** {modalidad}")
+    st.write(f"**Número jugado:** {seleccion}")
+    st.write(f"**Premio base:** ${pago_base:,}")
+    st.write(f"**Premio por multiplicador:** ${pago_multi:,}")
+    st.write(f"### 🏆 **Premio total máximo posible:** ${total:,}")
 
 # ---------------- NÚMEROS SIMILARES ----------------
 st.subheader("🔄 Números similares")
@@ -147,12 +162,22 @@ if seleccion and seleccion.isdigit():
 
     for s in similares:
         d = df_modalidad[df_modalidad["JUGADA"] == s]
-        tabla.append({
-            "Número": s,
-            "Apariciones": f"{len(d)} de {total_sorteos}",
-            "Última fecha": d["FECHA"].max().date() if len(d) > 0 else "Nunca",
-            "Sorteos sin salir": df_modalidad["CONCURSO"].max() - d["CONCURSO"].max() if len(d) > 0 else "N/A"
-        })
+        if len(d) > 0:
+            tabla.append({
+                "Número": s,
+                "Apariciones": len(d),
+                "Última fecha": d["FECHA"].max().date(),
+                "Sorteos sin salir": df_modalidad["CONCURSO"].max() - d["CONCURSO"].max(),
+                "Promedio": round(total_sorteos / len(d), 2)
+            })
+        else:
+            tabla.append({
+                "Número": s,
+                "Apariciones": 0,
+                "Última fecha": "Nunca",
+                "Sorteos sin salir": "N/A",
+                "Promedio": "N/A"
+            })
 
     st.dataframe(pd.DataFrame(tabla))
 
@@ -165,11 +190,14 @@ for j, g in df_modalidad.groupby("JUGADA"):
     apar = len(g)
     ult = g["CONCURSO"].max()
     sin = df_modalidad["CONCURSO"].max() - ult
-    ranking.append((j, sin))
+    prom = total_sorteos / apar
+    score = sin / prom
+    ranking.append((j, score, sin, prom))
 
 ranking = sorted(ranking, key=lambda x: x[1], reverse=True)[:3]
 
 for r in ranking:
     st.write(
-        f"🔹 **{r[0]}** — Lleva **{r[1]} sorteos** sin aparecer según el histórico."
+        f"🔹 **{r[0]}** — Históricamente aparece cada {int(r[3])} sorteos "
+        f"y actualmente lleva {r[2]} sin salir."
     )
