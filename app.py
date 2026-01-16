@@ -1,34 +1,64 @@
 import streamlit as st
 import pandas as pd
-from itertools import permutations
+from datetime import datetime
 
-# ---------------- CONFIGURACIÓN GENERAL ----------------
+# =============================
+# CONFIGURACIÓN GENERAL
+# =============================
 st.set_page_config(
-    page_title="Pronósticos Lucky – TRIS",
-    layout="wide"
+    page_title="🎲 Pronósticos Lucky – TRIS",
+    layout="centered"
 )
 
 st.title("🎲 Pronósticos Lucky – TRIS")
-st.write("Análisis estadístico y estimación de ganancia en el TRIS.")
+st.caption("Análisis estadístico basado únicamente en histórico oficial")
 
-st.markdown("""
-**Disclaimer:**  
-_Este análisis es únicamente estadístico e informativo.  
-No garantiza premios ni resultados._
-""")
+st.markdown(
+    """
+    **Disclaimer:**  
+    Este análisis es únicamente estadístico e informativo.  
+    No garantiza premios ni resultados.
+    """
+)
 
-# ---------------- CARGA DE DATOS ----------------
+# =============================
+# CARGA Y LIMPIEZA DE DATOS
+# =============================
 @st.cache_data
 def load_data():
     df = pd.read_csv("Tris.csv")
-    df["FECHA"] = pd.to_datetime(df["FECHA"], format="%d/%m/%Y", errors="coerce")
-    return df.sort_values("CONCURSO")
+    df["FECHA"] = pd.to_datetime(df["FECHA"], dayfirst=True, errors="coerce")
+    df = df.dropna(subset=["FECHA"])
+    return df
 
 df = load_data()
-total_sorteos = df["CONCURSO"].nunique()
 
-# ---------------- DATOS OFICIALES ----------------
-premios_oficiales = {
+total_sorteos = df["CONCURSO"].nunique()
+fecha_inicio = df["FECHA"].min().date()
+fecha_fin = df["FECHA"].max().date()
+
+st.markdown(
+    f"""
+    **Histórico analizado:**  
+    {total_sorteos} sorteos  
+    Desde **{fecha_inicio}** hasta **{fecha_fin}**
+    """
+)
+
+# =============================
+# MODALIDADES OFICIALES
+# =============================
+modalidades = {
+    "Directa 5": ["R1", "R2", "R3", "R4", "R5"],
+    "Directa 4": ["R2", "R3", "R4", "R5"],
+    "Directa 3": ["R3", "R4", "R5"],
+    "Par inicial": ["R1", "R2"],
+    "Par final": ["R4", "R5"],
+    "Número inicial": ["R1"],
+    "Número final": ["R5"]
+}
+
+premios_tris = {
     "Directa 5": 50000,
     "Directa 4": 5000,
     "Directa 3": 500,
@@ -38,7 +68,7 @@ premios_oficiales = {
     "Número final": 5
 }
 
-multiplicadores_oficiales = {
+multiplicadores = {
     "Directa 5": 200000,
     "Directa 4": 20000,
     "Directa 3": 2000,
@@ -48,187 +78,130 @@ multiplicadores_oficiales = {
     "Número final": 20
 }
 
-# ---------------- SELECCIÓN DE MODALIDAD ----------------
-st.subheader("🎯 Modalidad y Apuesta")
+# =============================
+# INPUTS DEL USUARIO
+# =============================
+st.subheader("🎯 Selección de jugada")
 
-modalidad = st.selectbox(
-    "Selecciona la modalidad:",
-    list(premios_oficiales.keys())
-)
+modalidad = st.selectbox("Modalidad", list(modalidades.keys()))
+numero = st.text_input("Número a analizar (sin espacios)", "")
 
-numero = st.text_input("Número a analizar:")
-apuesta_base = st.number_input("Monto de apuesta (pesos):", min_value=1, step=1)
+col1, col2 = st.columns(2)
+with col1:
+    apuesta_tris = st.number_input("Apuesta TRIS ($)", min_value=1, step=1)
+with col2:
+    apuesta_multiplicador = st.number_input("Apuesta multiplicador ($)", min_value=0, step=1)
 
-multiplicador_on = st.checkbox("Jugar con multiplicador?")
-apuesta_multiplicador = 0
+# =============================
+# VALIDACIONES
+# =============================
+partes = modalidades[modalidad]
+if len(numero) != len(partes) or not numero.isdigit():
+    st.warning(f"El número debe tener exactamente {len(partes)} dígitos.")
+    st.stop()
 
-if multiplicador_on:
-    apuesta_multiplicador = st.number_input("Monto para multiplicador (pesos):", min_value=1, step=1)
+# =============================
+# CONSTRUCCIÓN DE LA JUGADA
+# =============================
+df["JUGADA"] = df[partes].astype(int).astype(str).agg("".join, axis=1)
 
-# ---------------- EXTRACCIÓN DE JUGADA ----------------
-def extraer_valor(row):
-    try:
-        r1,r2,r3,r4,r5 = row.R1, row.R2, row.R3, row.R4, row.R5
-        if modalidad == "Directa 5":
-            return f"{int(r1)}{int(r2)}{int(r3)}{int(r4)}{int(r5)}"
-        if modalidad == "Directa 4":
-            return f"{int(r2)}{int(r3)}{int(r4)}{int(r5)}"
-        if modalidad == "Directa 3":
-            return f"{int(r3)}{int(r4)}{int(r5)}"
-        if modalidad == "Par inicial":
-            return f"{int(r1)}{int(r2)}"
-        if modalidad == "Par final":
-            return f"{int(r4)}{int(r5)}"
-        if modalidad == "Número inicial":
-            return f"{int(r1)}"
-        if modalidad == "Número final":
-            return f"{int(r5)}"
-    except:
-        return None
+apariciones = df[df["JUGADA"] == numero]
+conteo = len(apariciones)
 
-df["JUGADA"] = df.apply(extraer_valor, axis=1)
-df_modalidad = df.dropna(subset=["JUGADA"])
+ultima_fecha = apariciones["FECHA"].max().date() if conteo > 0 else "Nunca"
+ultimo_concurso = apariciones["CONCURSO"].max() if conteo > 0 else None
 
-# ---------------- ANÁLISIS ESTADÍSTICO ----------------
+if conteo > 0:
+    sorteos_sin_salir = df["CONCURSO"].max() - ultimo_concurso
+else:
+    sorteos_sin_salir = total_sorteos
+
+# =============================
+# ANÁLISIS ESTADÍSTICO
+# =============================
 st.subheader("📊 Análisis estadístico")
 
-if numero:
-    data = df_modalidad[df_modalidad["JUGADA"] == numero]
-    apariciones = len(data)
+st.markdown(
+    f"""
+    **Número analizado:** {numero}  
+    **Apariciones:** {conteo} veces en {total_sorteos} sorteos  
+    **Última aparición:** {ultima_fecha}  
+    **Sorteos sin salir:** {sorteos_sin_salir}
+    """
+)
 
-    if apariciones > 0:
-        primera_fecha = data["FECHA"].min().date()
-        ultima_fecha = data["FECHA"].max().date()
-        ultimo_concurso = data["CONCURSO"].max()
-        sorteos_sin_salir = df_modalidad["CONCURSO"].max() - ultimo_concurso
-        promedio = total_sorteos / apariciones
-
-        if sorteos_sin_salir >= promedio * 1.2:
-            estado = "🔥 Caliente"
-        elif sorteos_sin_salir <= promedio * 0.8:
-            estado = "❄️ Frío"
-        else:
-            estado = "⚪ Promedio"
-    else:
-        primera_fecha = "Nunca"
-        ultima_fecha = "Nunca"
-        sorteos_sin_salir = "N/A"
-        promedio = "N/A"
-        estado = "Sin datos"
-
-    st.write(f"**Apariciones:** {apariciones}")
-    st.write(f"**Desde:** {primera_fecha}")
-    st.write(f"**Última vez:** {ultima_fecha}")
-    st.write(f"**Sorteos sin salir:** {sorteos_sin_salir}")
-    st.write(f"**Promedio histórico:** {round(promedio, 2) if isinstance(promedio, float) else promedio}")
-    st.write(f"**Clasificación:** {estado}")
-
-# ---------------- CÁLCULO DE GANANCIA ----------------
-st.subheader("💰 Estimación de Ganancia")
-
-if numero and apuesta_base:
-    premio_base_unitario = premios_oficiales[modalidad]
-    premio_base_total = premio_base_unitario * apuesta_base
-
-    st.write(f"**Estimación sin multiplicador:**")
-    st.write(f"- Premio por unidad (según modalidad {modalidad}): ${premio_base_unitario:,} por peso")
-    st.write(f"- Con una apuesta de {apuesta_base} pesos → **${premio_base_total:,} MXN**")
-
-    if multiplicador_on:
-        mult_max = multiplicadores_oficiales[modalidad]
-        premio_mult_unitario = premio_base_unitario * mult_max
-        premio_mult_total = premio_base_unitario * apuesta_multiplicador * mult_max
-        cantidad_maxima = premio_base_total + premio_mult_total
-
-        st.write("**Estimación con multiplicador:**")
-        st.write(f"- Multiplicador máximo oficial para {modalidad}: ×{mult_max}")
-        st.write(f"- Apuesta al multiplicador: {apuesta_multiplicador} pesos")
-        st.write(f"- Premio de multiplicador posible (máximo): **${premio_mult_total:,} MXN**")
-        st.write(f"💰 **Cantidad máxima potencial (suma): ${cantidad_maxima:,} MXN**")
-
-# ---------------- TABLA OFICIAL DE PREMIOS Y MULTIPLICADORES ----------------
-st.subheader("📋 Tabla oficial (Referencial)")
-
-tabla_oficial = pd.DataFrame([
-    {
-        "Modalidad": m,
-        "Premio por $1 (MXN)": premios_oficiales[m],
-        "Multiplicador máximo": multiplicadores_oficiales[m]
-    }
-    for m in premios_oficiales
-])
-
-st.table(tabla_oficial)
-
-# ---------------- NÚMEROS SIMILARES ----------------
+# =============================
+# NÚMEROS SIMILARES
+# =============================
 st.subheader("🔄 Números similares")
 
-def generar_similares_inteligentes(num):
-    similares = []
-    largo = len(num)
-    digitos = list(num)
+def generar_similares(num, total=5):
+    similares = set()
+    digits = list(num)
 
-    perms = set("".join(p) for p in permutations(digitos, largo))
-    perms.discard(num)
+    for i in range(len(digits)):
+        for delta in [-1, 1]:
+            new = digits.copy()
+            d = int(new[i]) + delta
+            if 0 <= d <= 9:
+                new[i] = str(d)
+                similares.add("".join(new))
 
-    for p in perms:
-        if len(similares) < 5:
-            similares.append(p)
+    # Permutaciones
+    if len(num) > 1:
+        for i in range(len(num)):
+            for j in range(i + 1, len(num)):
+                perm = digits.copy()
+                perm[i], perm[j] = perm[j], perm[i]
+                similares.add("".join(perm))
 
-    n = int(num)
-    if len(similares) < 5:
-        similares.append(str(n - 1).zfill(largo))
-    if len(similares) < 5:
-        similares.append(str(n + 1).zfill(largo))
-    if len(similares) < 5:
-        similares.append("0" + num)
-    if len(similares) < 5:
-        similares.append(num + "0")
+    similares.discard(num)
 
-    return list(dict.fromkeys(similares))[:5]
+    while len(similares) < total:
+        similares.add(num[:-1] + str((int(num[-1]) + len(similares)) % 10))
 
-if numero and numero.isdigit():
-    similares = generar_similares_inteligentes(numero)
-    tabla = []
+    return list(similares)[:total]
 
-    for s in similares:
-        d = df_modalidad[df_modalidad["JUGADA"] == s]
-        if len(d) > 0:
-            tabla.append({
-                "Número": s,
-                "Apariciones": len(d),
-                "Última fecha": d["FECHA"].max().date(),
-                "Sorteos sin salir": df_modalidad["CONCURSO"].max() - d["CONCURSO"].max(),
-                "Promedio": round(total_sorteos / len(d), 2)
-            })
-        else:
-            tabla.append({
-                "Número": s,
-                "Apariciones": 0,
-                "Última fecha": "Nunca",
-                "Sorteos sin salir": "N/A",
-                "Promedio": "N/A"
-            })
+similares = generar_similares(numero)
 
-    st.dataframe(pd.DataFrame(tabla))
-
-# ---------------- RECOMENDACIONES LUCKY ----------------
-st.subheader("🍀 Recomendaciones Lucky")
-
-ranking = []
-
-for j, g in df_modalidad.groupby("JUGADA"):
-    apar = len(g)
-    ult = g["CONCURSO"].max()
-    sin = df_modalidad["CONCURSO"].max() - ult
-    prom = total_sorteos / apar
-    score = sin / prom
-    ranking.append((j, score, sin, prom))
-
-ranking = sorted(ranking, key=lambda x: x[1], reverse=True)[:3]
-
-for r in ranking:
-    st.write(
-        f"🔹 **{r[0]}** — Históricamente aparece cada {int(r[3])} sorteos "
-        f"y actualmente lleva {r[2]} sin salir."
+for s in similares:
+    apar = df[df["JUGADA"] == s]
+    st.markdown(
+        f"""
+        **{s}**  
+        Apariciones: {len(apar)}  
+        Última vez: {apar["FECHA"].max().date() if len(apar) > 0 else "Nunca"}
+        """
     )
+
+# =============================
+# CÁLCULO DE PREMIOS (OFICIAL)
+# =============================
+st.subheader("💰 Estimación de premio (oficial)")
+
+premio_base = apuesta_tris * premios_tris[modalidad]
+premio_multiplicador = apuesta_multiplicador * multiplicadores[modalidad]
+total_maximo = premio_base + premio_multiplicador
+
+st.markdown(
+    f"""
+    **Desglose de la jugada:**  
+
+    - Premio TRIS: ${premio_base:,}  
+    - Premio multiplicador: ${premio_multiplicador:,}  
+    - **Cantidad máxima a ganar:** ${total_maximo:,}
+    """
+)
+
+# =============================
+# TABLA INFORMATIVA
+# =============================
+st.subheader("ℹ️ Tabla informativa de premios")
+
+tabla = pd.DataFrame({
+    "Modalidad": premios_tris.keys(),
+    "Premio por $1": premios_tris.values(),
+    "Multiplicador máximo": multiplicadores.values()
+})
+
+st.dataframe(tabla, use_container_width=True)
