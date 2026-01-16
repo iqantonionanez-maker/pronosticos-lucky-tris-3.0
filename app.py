@@ -1,106 +1,173 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime
 
-st.set_page_config(page_title="Pronósticos Lucky", layout="centered")
+# =========================
+# CONFIGURACIÓN GENERAL
+# =========================
+st.set_page_config(
+    page_title="Pronósticos Lucky TRIS",
+    layout="centered"
+)
 
-# ---------- ESTILO LIMPIO ----------
+# =========================
+# ESTILOS (BLANCO + NEGRO)
+# =========================
 st.markdown("""
 <style>
-body { background-color: white; color: black; }
-.block-container { padding-top: 1.5rem; }
+body {
+    background-color: white;
+    color: black;
+}
+div[data-testid="metric-container"] {
+    background-color: #f7f7f7;
+    border-radius: 10px;
+    padding: 10px;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- CARGA CSV ----------
+# =========================
+# CARGA DE DATOS
+# =========================
 @st.cache_data
 def cargar_datos():
-    df = pd.read_csv("Tris.csv")
+    df = pd.read_csv("tris.csv")
 
-    for c in ["R1","R2","R3","R4","R5"]:
-        df[c] = df[c].astype(int).astype(str)
+    # Normalizar nombres
+    df.columns = df.columns.str.upper().str.strip()
 
-    df["NUMERO"] = df["R1"]+df["R2"]+df["R3"]+df["R4"]+df["R5"]
-    df["PAR_FINAL"] = df["R4"] + df["R5"]
-    df["PAR_INICIAL"] = df["R1"] + df["R2"]
-    df["D3"] = df["R3"] + df["R4"] + df["R5"]
-    df["D4"] = df["R2"] + df["R3"] + df["R4"] + df["R5"]
-    df["FECHA"] = pd.to_datetime(df["FECHA"], dayfirst=True, errors="coerce")
+    # ---- CASO 1: NUMERO YA ARMADO ----
+    if "NUMERO" in df.columns:
+        df["NUMERO"] = (
+            df["NUMERO"]
+            .astype(str)
+            .str.replace(".0", "", regex=False)
+            .str.zfill(3)
+        )
 
-    return df.sort_values("FECHA")
+    # ---- CASO 2: DIGITOS SEPARADOS ----
+    else:
+        posibles = [
+            ("N1", "N2", "N3"),
+            ("D1", "D2", "D3"),
+            ("DIGITO1", "DIGITO2", "DIGITO3"),
+        ]
+
+        columnas = None
+        for c in posibles:
+            if all(col in df.columns for col in c):
+                columnas = c
+                break
+
+        if columnas is None:
+            raise ValueError("No se encontró columna NUMERO ni dígitos separados")
+
+        for c in columnas:
+            df[c] = (
+                pd.to_numeric(df[c], errors="coerce")
+                .fillna(0)
+                .astype(int)
+                .astype(str)
+            )
+
+        df["NUMERO"] = df[columnas[0]] + df[columnas[1]] + df[columnas[2]]
+
+    # ---- FECHA ----
+    if "FECHA" in df.columns:
+        df["FECHA"] = pd.to_datetime(df["FECHA"], errors="coerce")
+
+    return df
+
 
 df = cargar_datos()
 
-# ---------- UI ----------
-st.markdown("<h1 style='text-align:center'>🎲 Pronósticos Lucky</h1>", unsafe_allow_html=True)
-st.caption("Análisis estadístico del TRIS (solo informativo)")
-st.success(f"Sorteos cargados correctamente: {len(df)}")
+# =========================
+# HEADER
+# =========================
+st.image("logo.png", width=160)
 
-numero = st.text_input("Ingresa el número").strip()
+st.title("🍀 Pronósticos Lucky TRIS")
+st.caption("Suerte informada • Análisis estadístico")
+
+st.success(f"✔ Sorteos cargados correctamente: {len(df)}")
+
+# =========================
+# INPUT USUARIO
+# =========================
+numero = st.text_input("🔍 Analizar número", max_chars=3)
+
 modalidad = st.selectbox(
     "Selecciona la modalidad",
-    ["Par final","Par inicial","Número final","Número inicial","Directa 3","Directa 4","Directa 5"]
+    ["Número exacto", "Par final", "Impar final"]
 )
 
-# ---------- ANÁLISIS ----------
-if numero.isdigit():
+# =========================
+# ANÁLISIS
+# =========================
+if numero and numero.isdigit():
+
+    numero = numero.zfill(3)
 
     if modalidad == "Par final":
-        parte = numero[-2:]
-        resultados = df[df["PAR_FINAL"] == parte]
+        df_filtrado = df[df["NUMERO"].astype(int) % 2 == 0]
+    elif modalidad == "Impar final":
+        df_filtrado = df[df["NUMERO"].astype(int) % 2 != 0]
+    else:
+        df_filtrado = df.copy()
 
-    elif modalidad == "Par inicial":
-        parte = numero[:2]
-        resultados = df[df["PAR_INICIAL"] == parte]
-
-    elif modalidad == "Número final":
-        parte = numero[-1]
-        resultados = df[df["R5"] == parte]
-
-    elif modalidad == "Número inicial":
-        parte = numero[:1]
-        resultados = df[df["R1"] == parte]
-
-    elif modalidad == "Directa 3":
-        parte = numero[-3:]
-        resultados = df[df["D3"] == parte]
-
-    elif modalidad == "Directa 4":
-        parte = numero[-4:]
-        resultados = df[df["D4"] == parte]
-
-    else:  # Directa 5
-        parte = numero.zfill(5)
-        resultados = df[df["NUMERO"] == parte]
+    apariciones = (df_filtrado["NUMERO"] == numero).sum()
 
     st.subheader("📊 Análisis estadístico")
-    st.write(f"**Número analizado:** {parte}")
-    st.write(f"**Apariciones históricas:** {len(resultados)}")
+    st.write(f"**Número analizado:** {numero}")
+    st.write(f"**Apariciones históricas:** {apariciones}")
 
-    if len(resultados) > 0:
-        ultima = resultados.iloc[-1]["FECHA"]
-        st.write(f"**Última vez que salió:** {ultima.strftime('%d/%m/%Y')}")
+    fechas = df_filtrado.loc[df_filtrado["NUMERO"] == numero, "FECHA"]
+
+    if not fechas.empty and fechas.notna().any():
+        ultima = fechas.dropna().iloc[-1]
+        st.write(f"**Última vez que salió:** {ultima.strftime('%d %B %Y')}")
     else:
         st.write("**Última vez que salió:** Nunca ha salido")
 
-    # ---------- CALIENTE / FRÍO ----------
-    promedio = len(df) / 100
-    if len(resultados) >= promedio * 1.2:
-        st.success("🔥 Número caliente — aparece ≥20% más que el promedio")
-    elif len(resultados) <= promedio * 0.8:
-        st.info("❄️ Número frío — aparece ≥20% menos que el promedio")
+    promedio = df_filtrado["NUMERO"].value_counts().mean()
+
+    if apariciones >= promedio * 1.2:
+        st.success("🔥 Número caliente — aparece ≥20% más que el promedio.")
+    elif apariciones <= promedio * 0.8:
+        st.info("❄️ Número frío — aparece ≥20% menos que el promedio.")
     else:
-        st.write("⚪ Comportamiento promedio")
+        st.warning("⚖️ Número neutro — dentro del promedio.")
 
-    # ---------- SIMILARES ----------
+    # =========================
+    # SIMILARES
+    # =========================
     st.subheader("🔄 Números similares")
-    base = int(parte)
-    for i in range(-2,3):
-        n = str(base+i).zfill(len(parte))
-        r = df[df["PAR_FINAL"] == n] if modalidad=="Par final" else df[df["NUMERO"].str.endswith(n)]
-        fecha = r.iloc[-1]["FECHA"].strftime("%d/%m/%Y") if len(r)>0 else "Nunca"
-        st.write(f"• {n} → {len(r)} apariciones | Última vez: {fecha}")
+    base = int(numero)
 
-# ---------- DISCLAIMER ----------
-st.markdown("---")
-st.caption("⚠️ Análisis estadístico. No garantiza premios.")
-st.markdown("🍀 **Pronósticos Lucky — suerte informada**")
+    for n in range(base - 2, base + 3):
+        if 0 <= n <= 999:
+            n_str = str(n).zfill(3)
+            count = (df_filtrado["NUMERO"] == n_str).sum()
+            fechas_n = df_filtrado.loc[df_filtrado["NUMERO"] == n_str, "FECHA"]
+
+            if not fechas_n.empty and fechas_n.notna().any():
+                ultima_n = fechas_n.dropna().iloc[-1].strftime("%d %B %Y")
+            else:
+                ultima_n = "Nunca ha salido"
+
+            st.write(f"• {n_str} → {count} apariciones | Última vez: {ultima_n}")
+
+    # =========================
+    # RECOMENDACIÓN
+    # =========================
+    st.subheader("🍀 Recomendaciones Lucky")
+    if apariciones == 0:
+        st.info("Este número no ha salido antes. Puede considerarse exploratorio.")
+    elif apariciones > promedio:
+        st.success("Buen historial estadístico.")
+    else:
+        st.warning("Frecuencia baja. Usar con precaución.")
+
+    st.caption("⚠️ Este análisis es únicamente estadístico e informativo.")
+
