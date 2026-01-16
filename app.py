@@ -1,9 +1,8 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 
 # =========================
-# CONFIGURACIÓN GENERAL
+# CONFIGURACIÓN
 # =========================
 st.set_page_config(
     page_title="Pronósticos Lucky TRIS",
@@ -11,16 +10,13 @@ st.set_page_config(
 )
 
 # =========================
-# ESTILOS (BLANCO + NEGRO)
+# ESTILOS (BLANCO)
 # =========================
 st.markdown("""
 <style>
-body {
-    background-color: white;
-    color: black;
-}
+body { background-color: white; color: black; }
 div[data-testid="metric-container"] {
-    background-color: #f7f7f7;
+    background-color: #f6f6f6;
     border-radius: 10px;
     padding: 10px;
 }
@@ -31,13 +27,10 @@ div[data-testid="metric-container"] {
 # CARGA DE DATOS
 # =========================
 @st.cache_data
-def cargar_datos():
-    df = pd.read_csv("tris.csv")
-
-    # Normalizar nombres
+def procesar_csv(df):
     df.columns = df.columns.str.upper().str.strip()
 
-    # ---- CASO 1: NUMERO YA ARMADO ----
+    # CASO NUMERO
     if "NUMERO" in df.columns:
         df["NUMERO"] = (
             df["NUMERO"]
@@ -45,8 +38,6 @@ def cargar_datos():
             .str.replace(".0", "", regex=False)
             .str.zfill(3)
         )
-
-    # ---- CASO 2: DIGITOS SEPARADOS ----
     else:
         posibles = [
             ("N1", "N2", "N3"),
@@ -61,7 +52,8 @@ def cargar_datos():
                 break
 
         if columnas is None:
-            raise ValueError("No se encontró columna NUMERO ni dígitos separados")
+            st.error("❌ No se encontró columna NUMERO ni dígitos separados")
+            st.stop()
 
         for c in columnas:
             df[c] = (
@@ -73,30 +65,37 @@ def cargar_datos():
 
         df["NUMERO"] = df[columnas[0]] + df[columnas[1]] + df[columnas[2]]
 
-    # ---- FECHA ----
     if "FECHA" in df.columns:
         df["FECHA"] = pd.to_datetime(df["FECHA"], errors="coerce")
 
     return df
 
 
-df = cargar_datos()
-
 # =========================
-# HEADER
+# UI CARGA ARCHIVO
 # =========================
-st.image("logo.png", width=160)
-
+st.image("logo.png", width=150)
 st.title("🍀 Pronósticos Lucky TRIS")
-st.caption("Suerte informada • Análisis estadístico")
 
-st.success(f"✔ Sorteos cargados correctamente: {len(df)}")
+archivo = st.file_uploader(
+    "📂 Sube el archivo CSV del TRIS",
+    type=["csv"]
+)
+
+df = None
+
+if archivo is not None:
+    df_raw = pd.read_csv(archivo)
+    df = procesar_csv(df_raw)
+    st.success(f"✔ Sorteos cargados correctamente: {len(df)}")
+else:
+    st.info("⬆️ Sube el archivo CSV para iniciar el análisis")
+    st.stop()
 
 # =========================
 # INPUT USUARIO
 # =========================
 numero = st.text_input("🔍 Analizar número", max_chars=3)
-
 modalidad = st.selectbox(
     "Selecciona la modalidad",
     ["Número exacto", "Par final", "Impar final"]
@@ -114,7 +113,7 @@ if numero and numero.isdigit():
     elif modalidad == "Impar final":
         df_filtrado = df[df["NUMERO"].astype(int) % 2 != 0]
     else:
-        df_filtrado = df.copy()
+        df_filtrado = df
 
     apariciones = (df_filtrado["NUMERO"] == numero).sum()
 
@@ -133,11 +132,11 @@ if numero and numero.isdigit():
     promedio = df_filtrado["NUMERO"].value_counts().mean()
 
     if apariciones >= promedio * 1.2:
-        st.success("🔥 Número caliente — aparece ≥20% más que el promedio.")
+        st.success("🔥 Número caliente")
     elif apariciones <= promedio * 0.8:
-        st.info("❄️ Número frío — aparece ≥20% menos que el promedio.")
+        st.info("❄️ Número frío")
     else:
-        st.warning("⚖️ Número neutro — dentro del promedio.")
+        st.warning("⚖️ Número neutro")
 
     # =========================
     # SIMILARES
@@ -148,26 +147,26 @@ if numero and numero.isdigit():
     for n in range(base - 2, base + 3):
         if 0 <= n <= 999:
             n_str = str(n).zfill(3)
-            count = (df_filtrado["NUMERO"] == n_str).sum()
-            fechas_n = df_filtrado.loc[df_filtrado["NUMERO"] == n_str, "FECHA"]
+            cnt = (df_filtrado["NUMERO"] == n_str).sum()
 
+            fechas_n = df_filtrado.loc[df_filtrado["NUMERO"] == n_str, "FECHA"]
             if not fechas_n.empty and fechas_n.notna().any():
                 ultima_n = fechas_n.dropna().iloc[-1].strftime("%d %B %Y")
             else:
                 ultima_n = "Nunca ha salido"
 
-            st.write(f"• {n_str} → {count} apariciones | Última vez: {ultima_n}")
+            st.write(f"• {n_str} → {cnt} apariciones | Última vez: {ultima_n}")
 
     # =========================
     # RECOMENDACIÓN
     # =========================
     st.subheader("🍀 Recomendaciones Lucky")
     if apariciones == 0:
-        st.info("Este número no ha salido antes. Puede considerarse exploratorio.")
+        st.info("Número exploratorio.")
     elif apariciones > promedio:
-        st.success("Buen historial estadístico.")
+        st.success("Buen historial.")
     else:
-        st.warning("Frecuencia baja. Usar con precaución.")
+        st.warning("Frecuencia baja.")
 
-    st.caption("⚠️ Este análisis es únicamente estadístico e informativo.")
+    st.caption("⚠️ Análisis estadístico, no garantiza premios.")
 
