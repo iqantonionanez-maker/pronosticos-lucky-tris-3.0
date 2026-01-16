@@ -1,172 +1,172 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime
 
-# =========================
-# CONFIGURACIÓN
-# =========================
+# ---------------- CONFIGURACIÓN GENERAL ----------------
 st.set_page_config(
-    page_title="Pronósticos Lucky TRIS",
-    layout="centered"
+    page_title="Pronósticos Lucky – TRIS",
+    layout="wide"
 )
 
-# =========================
-# ESTILOS (BLANCO)
-# =========================
+st.title("🎲 Pronósticos Lucky – TRIS")
+st.write("Análisis estadístico basado únicamente en el histórico oficial del TRIS.")
+
 st.markdown("""
-<style>
-body { background-color: white; color: black; }
-div[data-testid="metric-container"] {
-    background-color: #f6f6f6;
-    border-radius: 10px;
-    padding: 10px;
-}
-</style>
-""", unsafe_allow_html=True)
+**Disclaimer:**  
+_Este análisis es únicamente estadístico e informativo.  
+No garantiza premios ni resultados._
+""")
 
-# =========================
-# CARGA DE DATOS
-# =========================
+# ---------------- CARGA Y LIMPIEZA DE DATOS ----------------
 @st.cache_data
-def procesar_csv(df):
-    df.columns = df.columns.str.upper().str.strip()
+def load_data():
+    df = pd.read_csv("Tris.csv")
+    df["FECHA"] = pd.to_datetime(df["FECHA"], format="%d/%m/%Y", errors="coerce")
+    return df.sort_values("CONCURSO")
 
-    # CASO NUMERO
-    if "NUMERO" in df.columns:
-        df["NUMERO"] = (
-            df["NUMERO"]
-            .astype(str)
-            .str.replace(".0", "", regex=False)
-            .str.zfill(3)
-        )
-    else:
-        posibles = [
-            ("N1", "N2", "N3"),
-            ("D1", "D2", "D3"),
-            ("DIGITO1", "DIGITO2", "DIGITO3"),
-        ]
+df = load_data()
+total_sorteos = df["CONCURSO"].nunique()
 
-        columnas = None
-        for c in posibles:
-            if all(col in df.columns for col in c):
-                columnas = c
-                break
+# ---------------- TABLA DE PREMIOS ----------------
+st.subheader("💰 Premios oficiales por $1 peso apostado")
 
-        if columnas is None:
-            st.error("❌ No se encontró columna NUMERO ni dígitos separados")
-            st.stop()
+premios = pd.DataFrame({
+    "Modalidad": [
+        "Directa 5", "Directa 4", "Directa 3",
+        "Par inicial", "Par final",
+        "Número inicial", "Número final"
+    ],
+    "Premio ($ MXN)": [
+        50000, 5000, 500,
+        50, 50,
+        5, 5
+    ]
+})
 
-        for c in columnas:
-            df[c] = (
-                pd.to_numeric(df[c], errors="coerce")
-                .fillna(0)
-                .astype(int)
-                .astype(str)
-            )
+st.table(premios)
 
-        df["NUMERO"] = df[columnas[0]] + df[columnas[1]] + df[columnas[2]]
+# ---------------- SELECCIÓN DE MODALIDAD ----------------
+st.subheader("🎯 Modalidad a analizar")
 
-    if "FECHA" in df.columns:
-        df["FECHA"] = pd.to_datetime(df["FECHA"], errors="coerce")
-
-    return df
-
-
-# =========================
-# UI CARGA ARCHIVO
-# =========================
-st.image("logo.png", width=150)
-st.title("🍀 Pronósticos Lucky TRIS")
-
-archivo = st.file_uploader(
-    "📂 Sube el archivo CSV del TRIS",
-    type=["csv"]
-)
-
-df = None
-
-if archivo is not None:
-    df_raw = pd.read_csv(archivo)
-    df = procesar_csv(df_raw)
-    st.success(f"✔ Sorteos cargados correctamente: {len(df)}")
-else:
-    st.info("⬆️ Sube el archivo CSV para iniciar el análisis")
-    st.stop()
-
-# =========================
-# INPUT USUARIO
-# =========================
-numero = st.text_input("🔍 Analizar número", max_chars=3)
 modalidad = st.selectbox(
-    "Selecciona la modalidad",
-    ["Número exacto", "Par final", "Impar final"]
+    "Selecciona la modalidad:",
+    [
+        "Directa 5",
+        "Directa 4",
+        "Directa 3",
+        "Par inicial",
+        "Par final",
+        "Número inicial",
+        "Número final"
+    ]
 )
 
-# =========================
-# ANÁLISIS
-# =========================
-if numero and numero.isdigit():
+# ---------------- FUNCIÓN DE EXTRACCIÓN ----------------
+def extraer_valor(row):
+    try:
+        if modalidad == "Directa 5":
+            return f"{int(row.R1)}{int(row.R2)}{int(row.R3)}{int(row.R4)}{int(row.R5)}"
+        if modalidad == "Directa 4":
+            return f"{int(row.R2)}{int(row.R3)}{int(row.R4)}{int(row.R5)}"
+        if modalidad == "Directa 3":
+            return f"{int(row.R3)}{int(row.R4)}{int(row.R5)}"
+        if modalidad == "Par inicial":
+            return f"{int(row.R1)}{int(row.R2)}"
+        if modalidad == "Par final":
+            return f"{int(row.R4)}{int(row.R5)}"
+        if modalidad == "Número inicial":
+            return f"{int(row.R1)}"
+        if modalidad == "Número final":
+            return f"{int(row.R5)}"
+    except:
+        return None
 
-    numero = numero.zfill(3)
+df["JUGADA"] = df.apply(extraer_valor, axis=1)
+df_modalidad = df.dropna(subset=["JUGADA"])
 
-    if modalidad == "Par final":
-        df_filtrado = df[df["NUMERO"].astype(int) % 2 == 0]
-    elif modalidad == "Impar final":
-        df_filtrado = df[df["NUMERO"].astype(int) % 2 != 0]
+# ---------------- ANÁLISIS ESTADÍSTICO ----------------
+st.subheader("📊 Análisis estadístico")
+
+seleccion = st.text_input("Ingresa el número a analizar:")
+
+if seleccion:
+    data = df_modalidad[df_modalidad["JUGADA"] == seleccion]
+
+    apariciones = len(data)
+    ultima_fecha = data["FECHA"].max()
+    ultimo_concurso = data["CONCURSO"].max()
+
+    sorteos_sin_salir = df_modalidad["CONCURSO"].max() - ultimo_concurso
+    promedio = total_sorteos / apariciones if apariciones > 0 else None
+
+    if promedio:
+        if sorteos_sin_salir >= promedio * 1.2:
+            estado = "🔥 Caliente"
+        elif sorteos_sin_salir <= promedio * 0.8:
+            estado = "❄️ Frío"
+        else:
+            estado = "⚪ Promedio"
     else:
-        df_filtrado = df
+        estado = "Sin datos"
 
-    apariciones = (df_filtrado["NUMERO"] == numero).sum()
+    st.write(f"**Apariciones:** {apariciones}")
+    st.write(f"**Última vez:** {ultima_fecha.date() if apariciones > 0 else 'Nunca'}")
+    st.write(f"**Sorteos sin salir:** {sorteos_sin_salir}")
+    st.write(f"**Promedio histórico:** {round(promedio, 2) if promedio else 'N/A'}")
+    st.write(f"**Clasificación:** {estado}")
 
-    st.subheader("📊 Análisis estadístico")
-    st.write(f"**Número analizado:** {numero}")
-    st.write(f"**Apariciones históricas:** {apariciones}")
+# ---------------- NÚMEROS SIMILARES ----------------
+st.subheader("🔄 Números similares (7)")
 
-    fechas = df_filtrado.loc[df_filtrado["NUMERO"] == numero, "FECHA"]
+def generar_similares(num):
+    nums = set()
+    n = int(num)
+    nums.add(str(n - 1).zfill(len(num)))
+    nums.add(str(n + 1).zfill(len(num)))
 
-    if not fechas.empty and fechas.notna().any():
-        ultima = fechas.dropna().iloc[-1]
-        st.write(f"**Última vez que salió:** {ultima.strftime('%d %B %Y')}")
-    else:
-        st.write("**Última vez que salió:** Nunca ha salido")
+    for perm in set(pd.Series(list(num)).sample(len(num)).astype(str).str.cat()):
+        nums.add(perm)
+        if len(nums) >= 7:
+            break
 
-    promedio = df_filtrado["NUMERO"].value_counts().mean()
+    return list(nums)[:7]
 
-    if apariciones >= promedio * 1.2:
-        st.success("🔥 Número caliente")
-    elif apariciones <= promedio * 0.8:
-        st.info("❄️ Número frío")
-    else:
-        st.warning("⚖️ Número neutro")
+if seleccion and seleccion.isdigit():
+    similares = generar_similares(seleccion)
 
-    # =========================
-    # SIMILARES
-    # =========================
-    st.subheader("🔄 Números similares")
-    base = int(numero)
+    tabla_similares = []
 
-    for n in range(base - 2, base + 3):
-        if 0 <= n <= 999:
-            n_str = str(n).zfill(3)
-            cnt = (df_filtrado["NUMERO"] == n_str).sum()
+    for s in similares:
+        d = df_modalidad[df_modalidad["JUGADA"] == s]
+        if len(d) > 0:
+            tabla_similares.append({
+                "Número": s,
+                "Apariciones": len(d),
+                "Última fecha": d["FECHA"].max().date(),
+                "Sorteos sin salir": df_modalidad["CONCURSO"].max() - d["CONCURSO"].max(),
+                "Promedio": round(total_sorteos / len(d), 2)
+            })
 
-            fechas_n = df_filtrado.loc[df_filtrado["NUMERO"] == n_str, "FECHA"]
-            if not fechas_n.empty and fechas_n.notna().any():
-                ultima_n = fechas_n.dropna().iloc[-1].strftime("%d %B %Y")
-            else:
-                ultima_n = "Nunca ha salido"
+    st.dataframe(pd.DataFrame(tabla_similares))
 
-            st.write(f"• {n_str} → {cnt} apariciones | Última vez: {ultima_n}")
+# ---------------- RECOMENDACIONES LUCKY ----------------
+st.subheader("🍀 Recomendaciones Lucky")
 
-    # =========================
-    # RECOMENDACIÓN
-    # =========================
-    st.subheader("🍀 Recomendaciones Lucky")
-    if apariciones == 0:
-        st.info("Número exploratorio.")
-    elif apariciones > promedio:
-        st.success("Buen historial.")
-    else:
-        st.warning("Frecuencia baja.")
+ranking = []
 
-    st.caption("⚠️ Análisis estadístico, no garantiza premios.")
+for j, g in df_modalidad.groupby("JUGADA"):
+    apar = len(g)
+    ult = g["CONCURSO"].max()
+    sin = df_modalidad["CONCURSO"].max() - ult
+    prom = total_sorteos / apar
+    score = sin / prom
+    ranking.append((j, score, sin, prom))
+
+ranking = sorted(ranking, key=lambda x: x[1], reverse=True)[:3]
+
+for r in ranking:
+    st.write(
+        f"🔹 **{r[0]}** — Históricamente aparece cada {int(r[3])} sorteos "
+        f"y actualmente lleva {r[2]} sin salir."
+    )
 
