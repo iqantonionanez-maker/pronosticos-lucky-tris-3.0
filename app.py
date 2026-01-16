@@ -1,121 +1,157 @@
 import streamlit as st
 import pandas as pd
+from itertools import permutations
 
-# =============================
-# CONFIGURACIÓN GENERAL
-# =============================
-st.set_page_config(
-    page_title="🎲 Pronósticos Lucky – TRIS",
-    layout="centered"
-)
+st.set_page_config(page_title="Pronósticos Lucky TRIS", layout="centered")
 
 st.title("🎲 Pronósticos Lucky – TRIS")
-st.caption("Análisis estadístico basado únicamente en histórico oficial")
 
-st.markdown(
-    """
-    **Disclaimer:**  
-    Este análisis es únicamente estadístico e informativo.  
-    No garantiza premios ni resultados.
-    """
-)
-
-# =============================
-# CARGA Y LIMPIEZA DE DATOS
-# =============================
+# ===============================
+# CARGA DE DATOS
+# ===============================
 @st.cache_data
-def load_data():
+def cargar_datos():
     df = pd.read_csv("Tris.csv")
-
-    # Convertir fecha
-    df["FECHA"] = pd.to_datetime(df["FECHA"], dayfirst=True, errors="coerce")
-
-    # Eliminar sorteos incompletos
-    df = df.dropna(subset=["FECHA", "R1", "R2", "R3", "R4", "R5"])
-
-    # Asegurar que los resultados sean texto (NO int)
-    for col in ["R1", "R2", "R3", "R4", "R5"]:
-        df[col] = df[col].astype(str).str.strip()
-
+    df.columns = [c.upper() for c in df.columns]
     return df
 
-df = load_data()
+df = cargar_datos()
+total_sorteos = len(df)
 
-total_sorteos = df["CONCURSO"].nunique()
-fecha_inicio = df["FECHA"].min().date()
-fecha_fin = df["FECHA"].max().date()
-
-st.markdown(
-    f"""
-    **Histórico analizado:**  
-    {total_sorteos} sorteos  
-    Desde **{fecha_inicio}** hasta **{fecha_fin}**
-    """
-)
-
-# =============================
-# MODALIDADES OFICIALES
-# =============================
+# ===============================
+# MODALIDADES
+# ===============================
 modalidades = {
-    "Directa 5": ["R1", "R2", "R3", "R4", "R5"],
-    "Directa 4": ["R2", "R3", "R4", "R5"],
-    "Directa 3": ["R3", "R4", "R5"],
-    "Par inicial": ["R1", "R2"],
-    "Par final": ["R4", "R5"],
-    "Número inicial": ["R1"],
-    "Número final": ["R5"]
+    "Número final": {
+        "partes": ["N5"],
+        "premio": 10,
+        "multiplicador": 20
+    },
+    "Par final": {
+        "partes": ["N4", "N5"],
+        "premio": 50,
+        "multiplicador": 200
+    },
+    "Número inicial": {
+        "partes": ["N1"],
+        "premio": 10,
+        "multiplicador": 20
+    },
+    "Par inicial": {
+        "partes": ["N1", "N2"],
+        "premio": 50,
+        "multiplicador": 200
+    },
+    "Directa 3": {
+        "partes": ["N3", "N4", "N5"],
+        "premio": 500,
+        "multiplicador": 500
+    },
+    "Directa 4": {
+        "partes": ["N2", "N3", "N4", "N5"],
+        "premio": 5000,
+        "multiplicador": 1000
+    },
+    "Directa 5": {
+        "partes": ["N1", "N2", "N3", "N4", "N5"],
+        "premio": 50000,
+        "multiplicador": 10000
+    }
 }
 
-premios_tris = {
-    "Directa 5": 50000,
-    "Directa 4": 5000,
-    "Directa 3": 500,
-    "Par inicial": 50,
-    "Par final": 50,
-    "Número inicial": 5,
-    "Número final": 5
-}
+# ===============================
+# ENTRADAS USUARIO
+# ===============================
+modalidad = st.selectbox("Selecciona la modalidad", modalidades.keys())
+numero = st.text_input("Ingresa el número a jugar")
+apuesta_tris = st.number_input("Apuesta TRIS ($)", min_value=1, value=1)
+apuesta_multi = st.number_input("Apuesta Multiplicador ($)", min_value=0, value=0)
 
-multiplicadores = {
-    "Directa 5": 200000,
-    "Directa 4": 20000,
-    "Directa 3": 2000,
-    "Par inicial": 200,
-    "Par final": 200,
-    "Número inicial": 20,
-    "Número final": 20
-}
+info = modalidades[modalidad]
+partes = info["partes"]
 
-# =============================
-# INPUTS DEL USUARIO
-# =============================
-st.subheader("🎯 Selección de jugada")
-
-modalidad = st.selectbox("Modalidad", list(modalidades.keys()))
-numero = st.text_input("Número a analizar (sin espacios)", "").strip()
-
-col1, col2 = st.columns(2)
-with col1:
-    apuesta_tris = st.number_input("Apuesta TRIS ($)", min_value=1, step=1)
-with col2:
-    apuesta_multiplicador = st.number_input("Apuesta multiplicador ($)", min_value=0, step=1)
-
-# =============================
+# ===============================
 # VALIDACIONES
-# =============================
-partes = modalidades[modalidad]
+# ===============================
+if numero:
+    if not numero.isdigit():
+        st.warning("El número solo debe contener dígitos.")
+        st.stop()
 
-if len(numero) != len(partes) or not numero.isdigit():
-    st.warning(f"El número debe tener exactamente {len(partes)} dígitos.")
-    st.stop()
+    if len(numero) != len(partes):
+        st.warning(
+            f"Para la modalidad **{modalidad}** debes ingresar "
+            f"**{len(partes)} dígito(s)**."
+        )
+        st.stop()
 
-# =============================
-# CONSTRUCCIÓN DE LA JUGADA
-# =============================
-df["JUGADA"] = df[partes].agg("".join, axis=1)
+# ===============================
+# ANÁLISIS
+# ===============================
+if st.button("🔍 Analizar"):
+    df_temp = df.copy()
 
-apariciones = df[df["JUGADA"] == numero]
-conteo = len(apariciones)
+    # Construir jugada según modalidad
+    df_temp["JUGADA"] = df_temp[partes].astype(str).agg("".join, axis=1)
 
-ultima_fecha = apariciones["FECHA"].max().date() if conteo > 0 else "Nunca"
-ultimo_concurso = apariciones["CONCURSO"].max() if conteo > 0 else None
+    apariciones = (df_temp["JUGADA"] == numero).sum()
+
+    st.subheader("📊 Análisis estadístico")
+    st.write(
+        f"El número **{numero}** apareció **{apariciones} veces** "
+        f"en los últimos **{total_sorteos} sorteos analizados**."
+    )
+
+    # ===============================
+    # NÚMEROS SIMILARES
+    # ===============================
+    st.subheader("🔄 Números similares")
+
+    similares = set()
+
+    if len(numero) > 1:
+        for p in set(permutations(numero)):
+            similares.add("".join(p))
+
+    while len(similares) < 5:
+        similares.add(numero[:-1] + "0")
+
+    similares = list(similares)[:5]
+    st.write(", ".join(similares))
+
+    # ===============================
+    # CÁLCULO DE PREMIOS
+    # ===============================
+    st.subheader("💰 Cálculo de premio estimado")
+
+    premio_tris = apuesta_tris * info["premio"]
+    premio_multi = apuesta_multi * info["multiplicador"]
+    total_ganar = premio_tris + premio_multi
+
+    st.markdown(
+        f"""
+        **Ejemplo de jugada**
+
+        - Modalidad: **{modalidad}**
+        - Número jugado: **{numero}**
+        - Apuesta TRIS: **${apuesta_tris}**
+        - Apuesta Multiplicador: **${apuesta_multi}**
+
+        **Desglose**
+        - Premio TRIS: ${premio_tris}
+        - Premio Multiplicador: ${premio_multi}
+
+        ### 🟢 Cantidad máxima a ganar: **${total_ganar}**
+        """
+    )
+
+    # ===============================
+    # TABLA OFICIAL
+    # ===============================
+    st.subheader("📋 Tabla oficial aplicada")
+    st.write(
+        f"""
+        - Premio por $1 TRIS: **${info['premio']}**
+        - Multiplicador oficial: **{info['multiplicador']}×**
+        """
+    )
