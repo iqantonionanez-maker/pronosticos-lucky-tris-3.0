@@ -69,11 +69,19 @@ df_modalidad = df.dropna(subset=["JUGADA"])
 # ---------------- ANÁLISIS PRINCIPAL ----------------
 st.subheader("📊 Análisis estadístico")
 
-seleccion = st.text_input("Ingresa el número a analizar:")
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    seleccion = st.text_input("Ingresa el número a analizar:")
+
+with col2:
+    apuesta_tris = st.number_input("Apuesta TRIS ($)", min_value=1, step=1)
+
+with col3:
+    apuesta_multi = st.number_input("Apuesta Multiplicador ($)", min_value=0, step=1)
 
 if seleccion and seleccion.isdigit():
     data = df_modalidad[df_modalidad["JUGADA"] == seleccion]
-
     apariciones = len(data)
 
     if apariciones > 0:
@@ -99,6 +107,17 @@ if seleccion and seleccion.isdigit():
     st.write(f"**Sorteos sin salir:** {sorteos_sin_salir if sorteos_sin_salir is not None else 'N/A'}")
     st.write(f"**Promedio histórico:** {round(promedio, 2) if promedio else 'N/A'}")
     st.write(f"**Clasificación:** {estado}")
+
+    # -------- CÁLCULO DEL PREMIO --------
+    st.markdown("### 💰 Cálculo del premio máximo")
+
+    premio_tris = apuesta_tris * 70
+    premio_multi = apuesta_multi * 70 * 5  # factor máximo informativo
+    premio_total = premio_tris + premio_multi
+
+    st.write(f"Premio TRIS: **${premio_tris:,.2f}**")
+    st.write(f"Premio Multiplicador (máx): **${premio_multi:,.2f}**")
+    st.success(f"🏆 **Premio máximo estimado: ${premio_total:,.2f}**")
 
 # ---------------- NÚMEROS SIMILARES ----------------
 st.subheader("🔄 Números similares")
@@ -173,37 +192,3 @@ for r in ranking:
         f"🔹 **{r[0]}** — Históricamente aparece cada {int(r[3])} sorteos "
         f"y actualmente lleva {r[2]} sin salir."
     )
-
-# ======================================================
-# 🆕 CÁLCULO DE PREMIO (AGREGADO – NO MODIFICA LO ANTERIOR)
-# ======================================================
-st.subheader("💰 Cálculo de premio estimado")
-
-premios_oficiales = {
-    "Número inicial": {"tris": 10, "multi": 20},
-    "Número final": {"tris": 10, "multi": 20},
-    "Par inicial": {"tris": 50, "multi": 200},
-    "Par final": {"tris": 50, "multi": 200},
-    "Directa 3": {"tris": 500, "multi": 500},
-    "Directa 4": {"tris": 5000, "multi": 1000},
-    "Directa 5": {"tris": 50000, "multi": 10000}
-}
-
-apuesta_tris = st.number_input("Monto apuesta TRIS ($)", min_value=1, value=1)
-apuesta_multi = st.number_input("Monto apuesta Multiplicador ($)", min_value=0, value=0)
-
-if seleccion and seleccion.isdigit():
-    premio_tris = apuesta_tris * premios_oficiales[modalidad]["tris"]
-    premio_multi = apuesta_multi * premios_oficiales[modalidad]["multi"]
-    total = premio_tris + premio_multi
-
-    st.markdown(f"""
-    **Detalle del cálculo**
-
-    - Modalidad: **{modalidad}**
-    - Número jugado: **{seleccion}**
-    - Premio TRIS: ${premio_tris}
-    - Premio Multiplicador: ${premio_multi}
-
-    ### 🟢 Cantidad máxima a ganar: **${total}**
-    """)
