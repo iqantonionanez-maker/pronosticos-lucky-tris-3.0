@@ -108,7 +108,6 @@ def generar_similares_inteligentes(num):
     largo = len(num)
     digitos = list(num)
 
-    # 1️⃣ Permutaciones con los mismos dígitos
     perms = set("".join(p) for p in permutations(digitos, largo))
     perms.discard(num)
 
@@ -116,14 +115,12 @@ def generar_similares_inteligentes(num):
         if len(similares) < 5:
             similares.append(p)
 
-    # 2️⃣ Vecinos (+1 / -1) si no alcanza
     n = int(num)
     if len(similares) < 5:
         similares.append(str(n - 1).zfill(largo))
     if len(similares) < 5:
         similares.append(str(n + 1).zfill(largo))
 
-    # 3️⃣ Agregar 0 SOLO si aún no alcanza
     if len(similares) < 5:
         similares.append("0" + num)
     if len(similares) < 5:
@@ -176,3 +173,37 @@ for r in ranking:
         f"🔹 **{r[0]}** — Históricamente aparece cada {int(r[3])} sorteos "
         f"y actualmente lleva {r[2]} sin salir."
     )
+
+# ======================================================
+# 🆕 CÁLCULO DE PREMIO (AGREGADO – NO MODIFICA LO ANTERIOR)
+# ======================================================
+st.subheader("💰 Cálculo de premio estimado")
+
+premios_oficiales = {
+    "Número inicial": {"tris": 10, "multi": 20},
+    "Número final": {"tris": 10, "multi": 20},
+    "Par inicial": {"tris": 50, "multi": 200},
+    "Par final": {"tris": 50, "multi": 200},
+    "Directa 3": {"tris": 500, "multi": 500},
+    "Directa 4": {"tris": 5000, "multi": 1000},
+    "Directa 5": {"tris": 50000, "multi": 10000}
+}
+
+apuesta_tris = st.number_input("Monto apuesta TRIS ($)", min_value=1, value=1)
+apuesta_multi = st.number_input("Monto apuesta Multiplicador ($)", min_value=0, value=0)
+
+if seleccion and seleccion.isdigit():
+    premio_tris = apuesta_tris * premios_oficiales[modalidad]["tris"]
+    premio_multi = apuesta_multi * premios_oficiales[modalidad]["multi"]
+    total = premio_tris + premio_multi
+
+    st.markdown(f"""
+    **Detalle del cálculo**
+
+    - Modalidad: **{modalidad}**
+    - Número jugado: **{seleccion}**
+    - Premio TRIS: ${premio_tris}
+    - Premio Multiplicador: ${premio_multi}
+
+    ### 🟢 Cantidad máxima a ganar: **${total}**
+    """)
