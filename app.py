@@ -2,58 +2,57 @@ import streamlit as st
 import pandas as pd
 from itertools import permutations
 
-st.set_page_config(page_title="Pronósticos Lucky TRIS", layout="centered")
+st.set_page_config(page_title="Pronósticos Lucky – TRIS", layout="centered")
 
 st.title("🎲 Pronósticos Lucky – TRIS")
 
 # ===============================
-# CARGA DE DATOS
+# CARGA DE DATOS (CSV REAL)
 # ===============================
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv("Tris.csv")
-    df.columns = [c.upper() for c in df.columns]
     return df
 
 df = cargar_datos()
 total_sorteos = len(df)
 
 # ===============================
-# MODALIDADES
+# MODALIDADES (COLUMNAS REALES R1–R5)
 # ===============================
 modalidades = {
-    "Número final": {
-        "partes": ["N5"],
-        "premio": 10,
-        "multiplicador": 20
-    },
-    "Par final": {
-        "partes": ["N4", "N5"],
-        "premio": 50,
-        "multiplicador": 200
-    },
     "Número inicial": {
-        "partes": ["N1"],
+        "partes": ["R1"],
         "premio": 10,
         "multiplicador": 20
     },
     "Par inicial": {
-        "partes": ["N1", "N2"],
+        "partes": ["R1", "R2"],
+        "premio": 50,
+        "multiplicador": 200
+    },
+    "Número final": {
+        "partes": ["R5"],
+        "premio": 10,
+        "multiplicador": 20
+    },
+    "Par final": {
+        "partes": ["R4", "R5"],
         "premio": 50,
         "multiplicador": 200
     },
     "Directa 3": {
-        "partes": ["N3", "N4", "N5"],
+        "partes": ["R3", "R4", "R5"],
         "premio": 500,
         "multiplicador": 500
     },
     "Directa 4": {
-        "partes": ["N2", "N3", "N4", "N5"],
+        "partes": ["R2", "R3", "R4", "R5"],
         "premio": 5000,
         "multiplicador": 1000
     },
     "Directa 5": {
-        "partes": ["N1", "N2", "N3", "N4", "N5"],
+        "partes": ["R1", "R2", "R3", "R4", "R5"],
         "premio": 50000,
         "multiplicador": 10000
     }
@@ -71,7 +70,7 @@ info = modalidades[modalidad]
 partes = info["partes"]
 
 # ===============================
-# VALIDACIONES
+# VALIDACIONES CORRECTAS
 # ===============================
 if numero:
     if not numero.isdigit():
@@ -80,8 +79,8 @@ if numero:
 
     if len(numero) != len(partes):
         st.warning(
-            f"Para la modalidad **{modalidad}** debes ingresar "
-            f"**{len(partes)} dígito(s)**."
+            f"Para **{modalidad}** debes ingresar "
+            f"exactamente **{len(partes)} dígito(s)**."
         )
         st.stop()
 
@@ -91,7 +90,7 @@ if numero:
 if st.button("🔍 Analizar"):
     df_temp = df.copy()
 
-    # Construir jugada según modalidad
+    # Construcción segura de la jugada
     df_temp["JUGADA"] = df_temp[partes].astype(str).agg("".join, axis=1)
 
     apariciones = (df_temp["JUGADA"] == numero).sum()
@@ -103,7 +102,7 @@ if st.button("🔍 Analizar"):
     )
 
     # ===============================
-    # NÚMEROS SIMILARES
+    # NÚMEROS SIMILARES (5)
     # ===============================
     st.subheader("🔄 Números similares")
 
@@ -120,7 +119,7 @@ if st.button("🔍 Analizar"):
     st.write(", ".join(similares))
 
     # ===============================
-    # CÁLCULO DE PREMIOS
+    # CÁLCULO OFICIAL DE PREMIOS
     # ===============================
     st.subheader("💰 Cálculo de premio estimado")
 
@@ -130,10 +129,10 @@ if st.button("🔍 Analizar"):
 
     st.markdown(
         f"""
-        **Ejemplo de jugada**
+        **Detalle de jugada**
 
         - Modalidad: **{modalidad}**
-        - Número jugado: **{numero}**
+        - Número: **{numero}**
         - Apuesta TRIS: **${apuesta_tris}**
         - Apuesta Multiplicador: **${apuesta_multi}**
 
@@ -146,12 +145,12 @@ if st.button("🔍 Analizar"):
     )
 
     # ===============================
-    # TABLA OFICIAL
+    # DISCLAIMER
     # ===============================
-    st.subheader("📋 Tabla oficial aplicada")
-    st.write(
-        f"""
-        - Premio por $1 TRIS: **${info['premio']}**
-        - Multiplicador oficial: **{info['multiplicador']}×**
+    st.markdown(
+        """
+        ---
+        **Este análisis es únicamente estadístico e informativo.  
+        No garantiza premios ni resultados.**
         """
     )
