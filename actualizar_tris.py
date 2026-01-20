@@ -1,91 +1,71 @@
 import pandas as pd
 import requests
-from bs4 import BeautifulSoup
+import re
 from datetime import datetime
 
-URL = "https://www.resultadostris.com/"
 CSV_FILE = "Tris.csv"
+URL = "https://www.resultadostris.com/"
 
 print("🔎 Iniciando actualización TRIS...")
 
-# -----------------------------
-# Leer CSV local
-# -----------------------------
+# =========================
+# 1. Leer CSV local
+# =========================
 df = pd.read_csv(CSV_FILE)
-df["Concurso"] = df["Concurso"].astype(int)
+df["CONCURSO"] = df["CONCURSO"].astype(int)
 
-ultimo_local = df["Concurso"].max()
-print(f"📄 Último concurso local: {ultimo_local}")
+ultimo_concurso = df["CONCURSO"].max()
+print(f"📄 Último concurso local: {ultimo_concurso}")
 
-# -----------------------------
-# Obtener página web
-# -----------------------------
-resp = requests.get(URL, timeout=15)
-resp.raise_for_status()
+# =========================
+# 2. Descargar página
+# =========================
+response = requests.get(URL, timeout=30)
+response.raise_for_status()
 
-soup = BeautifulSoup(resp.text, "html.parser")
+texto = response.text
 
-# -----------------------------
-# Extraer concursos
-# -----------------------------
-concursos = []
+# =========================
+# 3. Extraer resultados con REGEX
+# =========================
+# Formato detectado:
+# 7 7 6 0 7 Tris Medio Día 35443
+patron = re.compile(
+    r"(\d)\s+(\d)\s+(\d)\s+(\d)\s+(\d).*?(\d{5})"
+)
 
-for td in soup.find_all("td"):
-    texto = td.get_text(strip=True)
-    if texto.isdigit():
-        num = int(texto)
-        if num > 10000:  # filtro seguro TRIS
-            concursos.append(num)
+matches = patron.findall(texto)
 
-if not concursos:
-    print("❌ No se encontraron concursos en la página")
-    exit()
-
-ultimo_web = max(concursos)
-print(f"🌐 Último concurso web detectado: {ultimo_web}")
-
-# -----------------------------
-# Comparar
-# -----------------------------
-if ultimo_web <= ultimo_local:
-    print("ℹ️ No hay sorteos nuevos.")
-    exit()
-
-# -----------------------------
-# Extraer filas completas
-# -----------------------------
 nuevos = []
 
-filas = soup.find_all("tr")
+for r1, r2, r3, r4, r5, concurso in matches:
+    concurso = int(concurso)
 
-for fila in filas:
-    cols = [c.get_text(strip=True) for c in fila.find_all("td")]
+    if concurso <= ultimo_concurso:
+        continue
 
-    if len(cols) >= 6 and cols[0].isdigit():
-        concurso = int(cols[0])
+    nuevos.append({
+        "NPRODUCTO": 60,
+        "CONCURSO": concurso,
+        "R1": int(r1),
+        "R2": int(r2),
+        "R3": int(r3),
+        "R4": int(r4),
+        "R5": int(r5),
+        "FECHA": datetime.now().strftime("%d/%m/%Y"),
+        "Multiplicador": "NO"   # luego lo automatizamos
+    })
 
-        if concurso > ultimo_local:
-            try:
-                nuevos.append({
-                    "Concurso": concurso,
-                    "Fecha": cols[1],
-                    "N1": int(cols[2]),
-                    "N2": int(cols[3]),
-                    "N3": int(cols[4]),
-                    "N4": int(cols[5])
-                })
-            except:
-                continue
+# =========================
+# 4. Guardar
+# =========================
+if nuevos:
+    df_nuevos = pd.DataFrame(nuevos)
+    df_final = pd.concat([df, df_nuevos], ignore_index=True)
+    df_final.sort_values("CONCURSO", inplace=True)
+    df_final.to_csv(CSV_FILE, index=False)
 
-if not nuevos:
-    print("⚠️ No se pudieron construir nuevos registros.")
-    exit()
-
-df_nuevos = pd.DataFrame(nuevos)
-df_final = pd.concat([df, df_nuevos], ignore_index=True)
-
-df_final.sort_values("Concurso", inplace=True)
-df_final.to_csv(CSV_FILE, index=False)
-
-print(f"✅ Actualizados {len(df_nuevos)} sorteos nuevos.")
-print(f"📈 CSV ahora llega hasta el concurso {df_final['Concurso'].max()}")
+    print(f"✅ Se agregaron {len(nuevos)} concursos nuevos")
+    print(f"🔢 Último concurso ahora: {df_final['CONCURSO'].max()}")
+else:
+    print("ℹ️ No hay sorteos nuevos")
