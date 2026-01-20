@@ -1,71 +1,93 @@
 import pandas as pd
-import requests
-import re
-from datetime import datetime
+from playwright.sync_api import sync_playwright
+import os
 
-CSV_FILE = "Tris.csv"
-URL = "https://www.resultadostris.com/"
+CSV_LOCAL = "Tris.csv"
+DOWNLOAD_DIR = "downloads"
 
-print("🔎 Iniciando actualización TRIS...")
+def descargar_csv_oficial():
+    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# =========================
-# 1. Leer CSV local
-# =========================
-df = pd.read_csv(CSV_FILE)
-df["CONCURSO"] = df["CONCURSO"].astype(int)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(accept_downloads=True)
+        page = context.new_page()
 
-ultimo_concurso = df["CONCURSO"].max()
-print(f"📄 Último concurso local: {ultimo_concurso}")
+        page.goto("https://www.loterianacional.gob.mx/Tris/resultados", timeout=60000)
+        page.wait_for_timeout(4000)
 
-# =========================
-# 2. Descargar página
-# =========================
-response = requests.get(URL, timeout=30)
-response.raise_for_status()
+        with page.expect_download() as download_info:
+            page.click("text=da click aqui")
 
-texto = response.text
+        download = download_info.value
+        ruta_csv = os.path.join(DOWNLOAD_DIR, download.suggested_filename)
+        download.save_as(ruta_csv)
 
-# =========================
-# 3. Extraer resultados con REGEX
-# =========================
-# Formato detectado:
-# 7 7 6 0 7 Tris Medio Día 35443
-patron = re.compile(
-    r"(\d)\s+(\d)\s+(\d)\s+(\d)\s+(\d).*?(\d{5})"
-)
+        browser.close()
 
-matches = patron.findall(texto)
+    return ruta_csv
 
-nuevos = []
+def normalizar_csv(df):
+    df.columns = [c.strip() for c in df.columns]
 
-for r1, r2, r3, r4, r5, concurso in matches:
-    concurso = int(concurso)
-
-    if concurso <= ultimo_concurso:
-        continue
-
-    nuevos.append({
-        "NPRODUCTO": 60,
-        "CONCURSO": concurso,
-        "R1": int(r1),
-        "R2": int(r2),
-        "R3": int(r3),
-        "R4": int(r4),
-        "R5": int(r5),
-        "FECHA": datetime.now().strftime("%d/%m/%Y"),
-        "Multiplicador": "NO"   # luego lo automatizamos
+    df = df.rename(columns={
+        "Sorteo": "CONCURSO",
+        "Fecha": "FECHA",
+        "Multiplicador": "Multiplicador"
     })
 
-# =========================
-# 4. Guardar
-# =========================
-if nuevos:
-    df_nuevos = pd.DataFrame(nuevos)
-    df_final = pd.concat([df, df_nuevos], ignore_index=True)
-    df_final.sort_values("CONCURSO", inplace=True)
-    df_final.to_csv(CSV_FILE, index=False)
+    df["NPRODUCTO"] = 60
 
-    print(f"✅ Se agregaron {len(nuevos)} concursos nuevos")
-    print(f"🔢 Último concurso ahora: {df_final['CONCURSO'].max()}")
-else:
-    print("ℹ️ No hay sorteos nuevos")
+    df["Combinación Ganadora"] = df["Combinación Ganadora"].astype(str).str.zfill(5)
+
+    df["R1"] = df["Combinación Ganadora"].str[0].astype(int)
+    df["R2"] = df["Combinación Ganadora"].str[1].astype(int)
+    df["R3"] = df["Combinación Ganadora"].str[2].astype(int)
+    df["R4"] = df["Combinación Ganadora"].str[3].astype(int)
+    df["R5"] = df["Combinación Ganadora"].str[4].astype(int)
+
+    df["Multiplicador"] = df["Multiplicador"].str.upper().replace({"SÍ": "SI"})
+
+    df_final = df[[
+        "NPRODUCTO",
+        "CONCURSO",
+        "R1", "R2", "R3", "R4", "R5",
+        "FECHA",
+        "Multiplicador"
+    ]]
+
+    return df_final
+
+def actualizar_tris():
+    print("🔎 Iniciando actualización TRIS...")
+
+    if os.path.exists(CSV_LOCAL):
+        df_local = pd.read_csv(CSV_LOCAL)
+        ultimo_local = df_local["CONCURSO"].max()
+        print(f"📄 Último concurso local: {ultimo_local}")
+    else:
+        df_local = pd.DataFrame()
+        ultimo_local = 0
+        print("📄 No existe archivo local, se creará uno nuevo")
+
+    ruta_csv_oficial = descargar_csv_oficial()
+    df_oficial_raw = pd.read_csv(ruta_csv_oficial)
+
+    df_oficial = normalizar_csv(df_oficial_raw)
+
+    nuevos = df_oficial[df_oficial["CONCURSO"] > ultimo_local]
+
+    if nuevos.empty:
+        print("ℹ️ No hay sorteos nuevos")
+        return
+
+    print(f"🆕 Nuevos sorteos encontrados: {len(nuevos)}")
+
+    df_final = pd.concat([df_local, nuevos], ignore_index=True)
+    df_final = df_final.sort_values("CONCURSO", ascending=False)
+
+    df_final.to_csv(CSV_LOCAL, index=False)
+    print("✅ Archivo TRIS actualizado correctamente")
+
+if __name__ == "__main__":
+    actualizar_tris()
