@@ -2,78 +2,90 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
-import sys
 
 URL = "https://www.resultadostris.com/"
-CSV_LOCAL = "Tris.csv"
+CSV_FILE = "Tris.csv"
 
 print("🔎 Iniciando actualización TRIS...")
 
-# ---------------- LEER CSV LOCAL ----------------
-try:
-    df_local = pd.read_csv(CSV_LOCAL)
-    df_local["CONCURSO"] = df_local["CONCURSO"].astype(int)
-    ultimo_concurso = df_local["CONCURSO"].max()
-except Exception as e:
-    print("❌ Error leyendo Tris.csv:", e)
-    sys.exit(1)
+# -----------------------------
+# Leer CSV local
+# -----------------------------
+df = pd.read_csv(CSV_FILE)
+df["Concurso"] = df["Concurso"].astype(int)
 
-print(f"📄 Último concurso local: {ultimo_concurso}")
+ultimo_local = df["Concurso"].max()
+print(f"📄 Último concurso local: {ultimo_local}")
 
-# ---------------- LEER WEB ----------------
-try:
-    response = requests.get(URL, timeout=30)
-    response.raise_for_status()
-except Exception as e:
-    print("❌ Error accediendo a la web:", e)
-    sys.exit(0)
+# -----------------------------
+# Obtener página web
+# -----------------------------
+resp = requests.get(URL, timeout=15)
+resp.raise_for_status()
 
-soup = BeautifulSoup(response.text, "html.parser")
+soup = BeautifulSoup(resp.text, "html.parser")
 
-# ---------------- EXTRAER RESULTADOS ----------------
-resultados = []
+# -----------------------------
+# Extraer concursos
+# -----------------------------
+concursos = []
 
-# Cada resultado está en bloques con números y texto
-for fila in soup.find_all("div", class_="resultado"):
-    texto = fila.get_text(" ", strip=True)
+for td in soup.find_all("td"):
+    texto = td.get_text(strip=True)
+    if texto.isdigit():
+        num = int(texto)
+        if num > 10000:  # filtro seguro TRIS
+            concursos.append(num)
 
-    # Ejemplo esperado:
-    # "7 7 6 0 7 Tris Medio Día 35443 03/01/2026"
-    partes = texto.split()
+if not concursos:
+    print("❌ No se encontraron concursos en la página")
+    exit()
 
-    try:
-        numeros = partes[0:5]
-        concurso = int(partes[-2])
-        fecha = partes[-1]
+ultimo_web = max(concursos)
+print(f"🌐 Último concurso web detectado: {ultimo_web}")
 
-        if concurso <= ultimo_concurso:
-            continue
-
-        fecha_dt = datetime.strptime(fecha, "%d/%m/%Y")
-
-        resultados.append({
-            "CONCURSO": concurso,
-            "FECHA": fecha_dt.strftime("%d/%m/%Y"),
-            "R1": int(numeros[0]),
-            "R2": int(numeros[1]),
-            "R3": int(numeros[2]),
-            "R4": int(numeros[3]),
-            "R5": int(numeros[4])
-        })
-
-    except Exception:
-        continue
-
-if not resultados:
+# -----------------------------
+# Comparar
+# -----------------------------
+if ultimo_web <= ultimo_local:
     print("ℹ️ No hay sorteos nuevos.")
-    sys.exit(0)
+    exit()
 
-# ---------------- GUARDAR ----------------
-df_nuevos = pd.DataFrame(resultados)
-df_final = pd.concat([df_local, df_nuevos], ignore_index=True)
-df_final = df_final.sort_values("CONCURSO")
+# -----------------------------
+# Extraer filas completas
+# -----------------------------
+nuevos = []
 
-df_final.to_csv(CSV_LOCAL, index=False)
+filas = soup.find_all("tr")
 
-print(f"✅ Se agregaron {len(df_nuevos)} sorteos nuevos.")
-print(f"🏁 Último concurso ahora: {df_final['CONCURSO'].max()}")
+for fila in filas:
+    cols = [c.get_text(strip=True) for c in fila.find_all("td")]
+
+    if len(cols) >= 6 and cols[0].isdigit():
+        concurso = int(cols[0])
+
+        if concurso > ultimo_local:
+            try:
+                nuevos.append({
+                    "Concurso": concurso,
+                    "Fecha": cols[1],
+                    "N1": int(cols[2]),
+                    "N2": int(cols[3]),
+                    "N3": int(cols[4]),
+                    "N4": int(cols[5])
+                })
+            except:
+                continue
+
+if not nuevos:
+    print("⚠️ No se pudieron construir nuevos registros.")
+    exit()
+
+df_nuevos = pd.DataFrame(nuevos)
+df_final = pd.concat([df, df_nuevos], ignore_index=True)
+
+df_final.sort_values("Concurso", inplace=True)
+df_final.to_csv(CSV_FILE, index=False)
+
+print(f"✅ Actualizados {len(df_nuevos)} sorteos nuevos.")
+print(f"📈 CSV ahora llega hasta el concurso {df_final['Concurso'].max()}")
