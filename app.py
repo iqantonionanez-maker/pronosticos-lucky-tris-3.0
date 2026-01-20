@@ -20,7 +20,7 @@ No garantiza premios ni resultados._
 
 CSV_LOCAL = "Tris.csv"
 
-# ---------------- FUNCIONES NUEVAS (NO TOCAN ANÁLISIS) ----------------
+# ---------------- FUNCIONES AUXILIARES ----------------
 def cargar_local():
     df = pd.read_csv(CSV_LOCAL)
     df["CONCURSO"] = df["CONCURSO"].astype(int)
@@ -33,6 +33,11 @@ def guardar(df):
 def normalizar_csv_externo(df):
     df.columns = [c.strip() for c in df.columns]
 
+    df = df.rename(columns={
+        "Sorteo": "CONCURSO",
+        "Fecha": "FECHA"
+    })
+
     if "Combinación Ganadora" in df.columns:
         df["Combinación Ganadora"] = df["Combinación Ganadora"].astype(str).str.zfill(5)
         df["R1"] = df["Combinación Ganadora"].str[0].astype(int)
@@ -41,82 +46,77 @@ def normalizar_csv_externo(df):
         df["R4"] = df["Combinación Ganadora"].str[3].astype(int)
         df["R5"] = df["Combinación Ganadora"].str[4].astype(int)
 
-    df = df.rename(columns={
-        "Sorteo": "CONCURSO",
-        "Fecha": "FECHA"
-    })
-
     df["NPRODUCTO"] = 60
     df["Multiplicador"] = df["Multiplicador"].str.upper().replace({"SÍ": "SI"})
 
     return df[[
-        "NPRODUCTO", "CONCURSO",
+        "NPRODUCTO",
+        "CONCURSO",
         "R1", "R2", "R3", "R4", "R5",
-        "FECHA", "Multiplicador"
+        "FECHA",
+        "Multiplicador"
     ]]
 
-# ---------------- BLOQUE NUEVO: ACTUALIZACIÓN ----------------
-st.subheader("🔄 Actualización del histórico")
+# ---------------- ACTUALIZACIÓN DEL HISTÓRICO ----------------
+with st.expander("🔄 Actualización del histórico", expanded=False):
 
-df_local = cargar_local()
-ultimo_concurso = df_local["CONCURSO"].max()
+    df_local = cargar_local()
+    ultimo_concurso = df_local["CONCURSO"].max()
+    st.info(f"📄 Último concurso registrado: {ultimo_concurso}")
 
-st.info(f"📄 Último concurso registrado: {ultimo_concurso}")
+    # ---- SUBIR CSV ----
+    st.markdown("### 📤 Actualizar desde archivo oficial")
+    archivo = st.file_uploader("Sube el CSV oficial del TRIS", type=["csv"])
 
-# ---- SUBIR CSV ----
-st.markdown("### 📤 Actualizar desde archivo oficial")
+    if archivo is not None:
+        try:
+            df_nuevo = pd.read_csv(archivo)
+            df_nuevo = normalizar_csv_externo(df_nuevo)
+            nuevos = df_nuevo[df_nuevo["CONCURSO"] > ultimo_concurso]
 
-archivo = st.file_uploader("Sube el CSV oficial del TRIS", type=["csv"])
+            if nuevos.empty:
+                st.warning("No hay sorteos nuevos en el archivo.")
+            else:
+                df_final = pd.concat([df_local, nuevos], ignore_index=True)
+                guardar(df_final)
+                st.success(f"✅ Se agregaron {len(nuevos)} sorteos nuevos.")
+                st.experimental_rerun()
 
-if archivo:
-    try:
-        df_nuevo = pd.read_csv(archivo)
-        df_nuevo = normalizar_csv_externo(df_nuevo)
-        nuevos = df_nuevo[df_nuevo["CONCURSO"] > ultimo_concurso]
+        except Exception as e:
+            st.error(f"Error al procesar el archivo: {e}")
 
-        if nuevos.empty:
-            st.warning("No hay sorteos nuevos en el archivo.")
-        else:
-            df_final = pd.concat([df_local, nuevos], ignore_index=True)
-            guardar(df_final)
-            st.success(f"✅ Se agregaron {len(nuevos)} sorteos nuevos. Recarga la app.")
-            st.stop()
+    # ---- CAPTURA MANUAL ----
+    st.markdown("### ✍️ Captura manual de sorteo")
 
-    except Exception as e:
-        st.error(f"Error al procesar el archivo: {e}")
+    with st.form("captura_manual"):
+        concurso_manual = ultimo_concurso + 1
+        numero = st.text_input("Número ganador (5 dígitos)")
+        multiplicador = st.selectbox("¿Salió multiplicador?", ["NO", "SI"])
+        fecha = st.date_input("Fecha del sorteo", value=date.today())
+        enviar = st.form_submit_button("Guardar sorteo")
 
-# ---- CAPTURA MANUAL ----
-st.markdown("### ✍️ Captura manual de sorteo")
+        if enviar:
+            if not numero.isdigit() or len(numero) != 5:
+                st.error("El número debe tener exactamente 5 dígitos.")
+            else:
+                nuevo = {
+                    "NPRODUCTO": 60,
+                    "CONCURSO": concurso_manual,
+                    "R1": int(numero[0]),
+                    "R2": int(numero[1]),
+                    "R3": int(numero[2]),
+                    "R4": int(numero[3]),
+                    "R5": int(numero[4]),
+                    "FECHA": fecha.strftime("%d/%m/%Y"),
+                    "Multiplicador": multiplicador
+                }
 
-with st.form("captura_manual"):
-    concurso_manual = ultimo_concurso + 1
-    numero = st.text_input("Número ganador (5 dígitos)")
-    multiplicador = st.selectbox("¿Salió multiplicador?", ["NO", "SI"])
-    fecha = st.date_input("Fecha del sorteo", value=date.today())
-    enviar = st.form_submit_button("Guardar sorteo")
+                df_final = pd.concat([df_local, pd.DataFrame([nuevo])], ignore_index=True)
+                guardar(df_final)
+                st.success(f"✅ Sorteo {concurso_manual} agregado.")
+                st.experimental_rerun()
 
-    if enviar:
-        if not numero.isdigit() or len(numero) != 5:
-            st.error("El número debe tener exactamente 5 dígitos.")
-        else:
-            nuevo = {
-                "NPRODUCTO": 60,
-                "CONCURSO": concurso_manual,
-                "R1": int(numero[0]),
-                "R2": int(numero[1]),
-                "R3": int(numero[2]),
-                "R4": int(numero[3]),
-                "R5": int(numero[4]),
-                "FECHA": fecha.strftime("%d/%m/%Y"),
-                "Multiplicador": multiplicador
-            }
-
-            df_final = pd.concat([df_local, pd.DataFrame([nuevo])], ignore_index=True)
-            guardar(df_final)
-            st.success(f"✅ Sorteo {concurso_manual} agregado. Recarga la app.")
-            st.stop()
-
-# ---------------- CARGA DE DATOS (ORIGINAL) ----------------
+# ---------------- CARGA DE DATOS ORIGINAL ----------------
 @st.cache_data
 def load_data():
     df = pd.read_csv("Tris.csv")
@@ -164,6 +164,3 @@ def extraer_valor(row):
 
 df["JUGADA"] = df.apply(extraer_valor, axis=1)
 df_modalidad = df.dropna(subset=["JUGADA"])
-
-# ---------------- TODO LO DEMÁS QUEDA IGUAL ----------------
-# (análisis, premios, similares, recomendaciones)
