@@ -12,6 +12,8 @@ on:
 jobs:
   update-tris:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # 👈 ESTO ES LO QUE FALTABA
 
     steps:
       - name: Checkout repo
