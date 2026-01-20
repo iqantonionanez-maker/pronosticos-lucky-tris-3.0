@@ -6,6 +6,8 @@ CSV_LOCAL = "Tris.csv"
 DOWNLOAD_DIR = "downloads"
 
 def descargar_csv_oficial():
+    print("🌐 Abriendo página oficial TRIS...")
+
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
     with sync_playwright() as p:
@@ -14,10 +16,12 @@ def descargar_csv_oficial():
         page = context.new_page()
 
         page.goto("https://www.loterianacional.gob.mx/Tris/resultados", timeout=60000)
-        page.wait_for_timeout(4000)
+        page.wait_for_load_state("networkidle")
+
+        print("⬇️ Buscando enlace de descarga CSV...")
 
         with page.expect_download() as download_info:
-            page.click("text=da click aqui")
+            page.locator("a[href$='.csv']").first.click()
 
         download = download_info.value
         ruta_csv = os.path.join(DOWNLOAD_DIR, download.suggested_filename)
@@ -25,15 +29,18 @@ def descargar_csv_oficial():
 
         browser.close()
 
+    print(f"📁 CSV descargado: {ruta_csv}")
     return ruta_csv
 
+
 def normalizar_csv(df):
+    print("🧹 Normalizando estructura del CSV oficial...")
+
     df.columns = [c.strip() for c in df.columns]
 
     df = df.rename(columns={
         "Sorteo": "CONCURSO",
-        "Fecha": "FECHA",
-        "Multiplicador": "Multiplicador"
+        "Fecha": "FECHA"
     })
 
     df["NPRODUCTO"] = 60
@@ -46,7 +53,7 @@ def normalizar_csv(df):
     df["R4"] = df["Combinación Ganadora"].str[3].astype(int)
     df["R5"] = df["Combinación Ganadora"].str[4].astype(int)
 
-    df["Multiplicador"] = df["Multiplicador"].str.upper().replace({"SÍ": "SI"})
+    df["Multiplicador"] = df["Multiplicador"].astype(str).str.upper().replace({"SÍ": "SI"})
 
     df_final = df[[
         "NPRODUCTO",
@@ -58,6 +65,7 @@ def normalizar_csv(df):
 
     return df_final
 
+
 def actualizar_tris():
     print("🔎 Iniciando actualización TRIS...")
 
@@ -68,7 +76,7 @@ def actualizar_tris():
     else:
         df_local = pd.DataFrame()
         ultimo_local = 0
-        print("📄 No existe archivo local, se creará uno nuevo")
+        print("📄 No existe CSV local, se creará uno nuevo")
 
     ruta_csv_oficial = descargar_csv_oficial()
     df_oficial_raw = pd.read_csv(ruta_csv_oficial)
@@ -88,6 +96,7 @@ def actualizar_tris():
 
     df_final.to_csv(CSV_LOCAL, index=False)
     print("✅ Archivo TRIS actualizado correctamente")
+
 
 if __name__ == "__main__":
     actualizar_tris()
