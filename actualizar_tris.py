@@ -2,67 +2,89 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
+import sys
 
 print("🔎 Iniciando actualización TRIS...")
 
-# 1️⃣ Leer CSV actual
-df = pd.read_csv("Tris.csv")
+# ================= CONFIG =================
+URL = "https://www.loteria-resultados.com/mexico/tris"
+CSV_FILE = "Tris.csv"
+TIMEOUT = 30
+# ==========================================
 
-ultimo_concurso_csv = df["CONCURSO"].max()
-print(f"📄 Último concurso en CSV: {ultimo_concurso_csv}")
+# ---------- CARGAR CSV ----------
+try:
+    df = pd.read_csv(CSV_FILE)
+    df["CONCURSO"] = df["CONCURSO"].astype(int)
+    ultimo_concurso = df["CONCURSO"].max()
+except Exception as e:
+    print("❌ Error leyendo Tris.csv:", e)
+    sys.exit(1)
 
-# 2️⃣ Fuente externa (HTML simple)
-URL = "https://resultados.gob.mx/loteria/tris"
-response = requests.get(URL, timeout=30)
+print(f"📄 Último concurso en CSV: {ultimo_concurso}")
 
-if response.status_code != 200:
-    print("❌ No se pudo acceder a la página de resultados")
-    exit()
+# ---------- OBTENER WEB ----------
+try:
+    response = requests.get(URL, timeout=TIMEOUT, headers={
+        "User-Agent": "Mozilla/5.0"
+    })
+    response.raise_for_status()
+except Exception as e:
+    print("⚠️ No se pudo acceder a la fuente externa.")
+    print("Motivo:", e)
+    print("➡️ Se cancela actualización sin romper el CSV.")
+    sys.exit(0)
 
 soup = BeautifulSoup(response.text, "html.parser")
 
+# ---------- EXTRAER RESULTADOS ----------
+nuevos = []
+
 tabla = soup.find("table")
 if not tabla:
-    print("❌ No se encontró la tabla de resultados")
-    exit()
+    print("⚠️ No se encontró la tabla de resultados.")
+    sys.exit(0)
 
 filas = tabla.find_all("tr")[1:]
 
-nuevos_registros = []
-
 for fila in filas:
-    cols = [c.text.strip() for c in fila.find_all("td")]
-
+    cols = fila.find_all("td")
     if len(cols) < 7:
         continue
 
-    concurso = int(cols[0])
-    fecha = datetime.strptime(cols[1], "%d/%m/%Y")
+    try:
+        concurso = int(cols[0].text.strip())
+        fecha = datetime.strptime(cols[1].text.strip(), "%d/%m/%Y")
 
-    if concurso <= ultimo_concurso_csv:
+        numeros = cols[2].text.strip().replace(" ", "")
+        r = list(numeros)
+
+        if concurso <= ultimo_concurso:
+            continue
+
+        nuevos.append({
+            "CONCURSO": concurso,
+            "FECHA": fecha.strftime("%d/%m/%Y"),
+            "R1": r[0],
+            "R2": r[1],
+            "R3": r[2],
+            "R4": r[3],
+            "R5": r[4]
+        })
+
+    except Exception:
         continue
 
-    r1, r2, r3, r4, r5 = map(int, cols[2:7])
+# ---------- GUARDAR ----------
+if not nuevos:
+    print("ℹ️ No hay sorteos nuevos.")
+    sys.exit(0)
 
-    nuevos_registros.append({
-        "CONCURSO": concurso,
-        "FECHA": fecha.strftime("%d/%m/%Y"),
-        "R1": r1,
-        "R2": r2,
-        "R3": r3,
-        "R4": r4,
-        "R5": r5
-    })
-
-if not nuevos_registros:
-    print("ℹ️ No hay sorteos nuevos para agregar")
-    exit()
-
-df_nuevos = pd.DataFrame(nuevos_registros)
+df_nuevos = pd.DataFrame(nuevos)
 df_final = pd.concat([df, df_nuevos], ignore_index=True)
 df_final = df_final.sort_values("CONCURSO")
 
-df_final.to_csv("Tris.csv", index=False)
+df_final.to_csv(CSV_FILE, index=False)
 
-print(f"✅ Sorteos nuevos agregados: {len(nuevos_registros)}")
+print(f"✅ Actualización exitosa: {len(nuevos)} sorteos nuevos añadidos.")
 print(f"🏁 Último concurso ahora: {df_final['CONCURSO'].max()}")
