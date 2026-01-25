@@ -19,6 +19,71 @@ No garantiza premios ni resultados._
 """)
 
 CSV_LOCAL = "Tris.csv"
+# ----------- ESTILOS VISUALES (PSICOLOGÍA DE COLORES) -----------
+st.markdown("""
+<style>
+
+    /* Fondo general */
+    .stApp {
+        background-color: #1F9E35;
+        color: #FFFFFF;
+    }
+
+    /* Títulos */
+    h1, h2, h3, h4 {
+        color: #FFFFFF;
+    }
+
+    /* Texto general */
+    .stMarkdown, .stText, .stWrite, label, p, span, div {
+        color: #FFFFFF;
+    }
+
+    /* Fondo sidebar */
+    section[data-testid="stSidebar"] {
+        background-color: #168a2c;
+    }
+
+    /* Inputs */
+    input, textarea {
+        background-color: #FFFFFF;
+        color: #000000;
+        border-radius: 10px;
+    }
+
+    /* Selectbox y number input */
+    .stSelectbox div, .stNumberInput div {
+        background-color: #FFFFFF;
+        color: #000000;
+        border-radius: 10px;
+    }
+
+    /* Botones */
+    .stButton > button {
+        background-color: #f4c430;
+        color: #000000;
+        font-weight: bold;
+        border-radius: 12px;
+        padding: 10px 24px;
+    }
+
+    .stButton > button:hover {
+        background-color: #d4a017;
+    }
+
+    /* Tarjetas visuales */
+    .card {
+        background-color: #FFFFFF;
+        color: #000000;
+        border-radius: 18px;
+        padding: 22px;
+        box-shadow: 0px 6px 18px rgba(0,0,0,0.18);
+        margin-bottom: 20px;
+    }
+
+</style>
+""", unsafe_allow_html=True)
+
 
 # ---------------- FUNCIONES AUXILIARES ----------------
 def cargar_local():
