@@ -9,51 +9,71 @@ st.set_page_config(
     layout="wide"
 )
 
-# ----------- ESTILOS VISUALES (SUERTE + LEGIBILIDAD) -----------
+# ----------- ESTILOS VISUALES (PSICOLOGÍA DE COLORES) -----------
 st.markdown("""
 <style>
+
+    /* Fondo general */
     .stApp {
-        background-color: #fff7ed;  /* Crema cálido */
-        color: #000000;
+        background-color: #22b53A;
+        color: #FFFFFF;
     }
 
+    /* Títulos */
     h1, h2, h3, h4 {
-        color: #000000;
+        color: #FFFFFF;
     }
 
+    /* Texto general */
     .stMarkdown, .stText, .stWrite, label, p, span, div {
-        color: #000000;
+        color: #FFFFFF;
     }
 
+    /* Fondo sidebar */
+    section[data-testid="stSidebar"] {
+        background-color: #168a2c;
+    }
+
+    /* Inputs */
     input, textarea {
-        background-color: #ffffff;
+        background-color: #FFFFFF;
         color: #000000;
-        border-radius: 6px;
+        border-radius: 10px;
     }
 
+    /* Selectbox y number input */
     .stSelectbox div, .stNumberInput div {
-        background-color: #ffffff;
+        background-color: #FFFFFF;
         color: #000000;
+        border-radius: 10px;
     }
 
-    button {
-        background-color: #facc15; /* Dorado suerte */
+    /* Botones */
+    .stButton > button {
+        background-color: #f4c430;
         color: #000000;
-        border-radius: 8px;
         font-weight: bold;
+        border-radius: 12px;
+        padding: 10px 24px;
     }
 
-    .stSuccess {
-        background-color: #fde68a;
-        color: #000000;
+    .stButton > button:hover {
+        background-color: #d4a017;
     }
 
-    .stWarning {
-        background-color: #fef3c7;
+    /* Tarjetas visuales */
+    .card {
+        background-color: #FFFFFF;
         color: #000000;
+        border-radius: 18px;
+        padding: 22px;
+        box-shadow: 0px 6px 18px rgba(0,0,0,0.18);
+        margin-bottom: 20px;
     }
+
 </style>
 """, unsafe_allow_html=True)
+
 
 
 
