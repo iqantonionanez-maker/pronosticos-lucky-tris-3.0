@@ -81,6 +81,20 @@ def cargar_local():
     df = pd.read_csv(CSV_LOCAL)
     df["CONCURSO"] = df["CONCURSO"].astype(int)
     return df
+def fecha_espanol(fecha):
+    if pd.isna(fecha):
+        return "Nunca"
+
+    dias = [
+        "lunes", "martes", "miércoles",
+        "jueves", "viernes", "sábado", "domingo"
+    ]
+    meses = [
+        "enero", "febrero", "marzo", "abril", "mayo", "junio",
+        "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+    ]
+
+    return f"{dias[fecha.weekday()]} {fecha.day} de {meses[fecha.month - 1]} de {fecha.year}"
 
 def guardar(df):
     df = df.sort_values("CONCURSO", ascending=False)
