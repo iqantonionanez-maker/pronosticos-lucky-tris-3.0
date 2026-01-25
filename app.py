@@ -227,6 +227,7 @@ df["JUGADA"] = df.apply(extraer_valor, axis=1)
 df_modalidad = df.dropna(subset=["JUGADA"])
 
 # ================== ANÁLISIS PRINCIPAL ==================
+
 st.header("📊 Análisis principal")
 
 # Asegurar orden correcto
@@ -306,6 +307,7 @@ if not df_num.empty:
     st.dataframe(tabla, use_container_width=True)
 else:
     st.info("Sin apariciones registradas.")
+
 
 
 # ---------------- CÁLCULO DE PREMIOS ----------------
