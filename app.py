@@ -234,31 +234,49 @@ seleccion = st.text_input("Ingresa el número a analizar:")
 if seleccion and seleccion.isdigit():
     data = df_modalidad[df_modalidad["JUGADA"] == seleccion]
 
-    apariciones = len(data)
+    apariciones_total = len(data)
 
-    if apariciones > 0:
-        ultima_fecha = data["FECHA"].max()
-        ultimo_concurso = data["CONCURSO"].max()
-        sorteos_sin_salir = df_modalidad["CONCURSO"].max() - ultimo_concurso
-        promedio = total_sorteos / apariciones
+    if apariciones_total > 0:
+        ultimo_concurso = df_modalidad["CONCURSO"].max()
 
-        if sorteos_sin_salir >= promedio * 1.2:
-            estado = "🔥 Caliente"
-        elif sorteos_sin_salir <= promedio * 0.8:
-            estado = "❄️ Frío"
-        else:
-            estado = "⚪ Promedio"
+        # Rangos de sorteos
+        ult_100 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 100]
+        ult_1000 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 1000]
+        ult_10000 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 10000]
+
+        apar_100 = len(ult_100[ult_100["JUGADA"] == seleccion])
+        apar_1000 = len(ult_1000[ult_1000["JUGADA"] == seleccion])
+        apar_10000 = len(ult_10000[ult_10000["JUGADA"] == seleccion])
+
+        # Promedio redondeado
+        promedio = round(total_sorteos / apariciones_total)
+
+        # Últimas 5 fechas
+        ultimas_fechas = (
+            data.sort_values("FECHA", ascending=False)
+            .head(5)["FECHA"]
+            .dt.strftime("%d-%b-%y")
+            .str.upper()
+            .tolist()
+        )
+
+        st.write(f"**Apariciones históricas:** {apariciones_total}")
+        st.write(
+            f"Este número ha aparecido **{apariciones_total} veces en el histórico**, "
+            f"**{apar_10000} veces en los últimos 10,000 sorteos**, "
+            f"**{apar_1000} veces en los últimos 1,000 sorteos** y "
+            f"**{apar_100} veces en los últimos 100 sorteos**."
+        )
+
+        st.write(f"**Promedio histórico:** {promedio} sorteos")
+
+        st.write("**Últimas 5 fechas en que salió:**")
+        for f in ultimas_fechas:
+            st.write(f"• {f}")
+
     else:
-        ultima_fecha = None
-        sorteos_sin_salir = None
-        promedio = None
-        estado = "Sin datos"
+        st.warning("Este número no tiene apariciones en el histórico.")
 
-    st.write(f"**Apariciones:** {apariciones}")
-    st.write(f"**Última vez:** {ultima_fecha.date() if ultima_fecha is not None else 'Nunca'}")
-    st.write(f"**Sorteos sin salir:** {sorteos_sin_salir if sorteos_sin_salir is not None else 'N/A'}")
-    st.write(f"**Promedio histórico:** {round(promedio, 2) if promedio else 'N/A'}")
-    st.write(f"**Clasificación:** {estado}")
 
 # ---------------- CÁLCULO DE PREMIOS ----------------
 st.subheader("💰 Cálculo de premio máximo posible")
