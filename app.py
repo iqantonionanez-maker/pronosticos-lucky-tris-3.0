@@ -279,7 +279,6 @@ st.markdown("### 📅 Comportamiento reciente")
 st.write(f"• Última vez: **{fecha_espanol(ultima_fecha)}**")
 st.write(f"• Sorteos sin salir: **{sorteos_sin_salir if sorteos_sin_salir is not None else 'N/A'}**")
 st.write(f"• Promedio histórico: **{round(promedio, 2) if promedio else 'N/A'}**")
-st.write(f"• Clasificación: **{estado}**")
 
 
 # ---------------- CÁLCULO DE PREMIOS ----------------
