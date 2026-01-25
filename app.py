@@ -23,82 +23,79 @@ CSV_LOCAL = "Tris.csv"
 st.markdown("""
 <style>
 
-    /* Fondo general */
-    .stApp {
-        background-color: #1F9E35;
-        color: #FFFFFF;
-    }
+/* Fondo general */
+.stApp {
+    background-color: #1F9E35;
+}
 
-    /* Títulos */
-    h1, h2, h3, h4 {
-        color: #FFFFFF;
-    }
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: #168a2c;
+}
 
-    /* Texto general */
-    .stMarkdown, .stText, .stWrite, label, p, span, div {
-        color: #FFFFFF;
-    }
+/* Títulos */
+h1, h2, h3, h4 {
+    color: #FFFFFF !important;
+}
 
-    /* Fondo sidebar */
-    section[data-testid="stSidebar"] {
-        background-color: #168a2c;
-    }
+/* Texto normal */
+p, span, div {
+    color: #FFFFFF;
+}
 
-    /* Inputs */
-    input, textarea {
-        background-color: #FFFFFF;
-        color: #000000;
-        border-radius: 10px;
-    }
-
-    /* Selectbox y number input */
-    .stSelectbox div, .stNumberInput div {
-        background-color: #FFFFFF;
-        color: #000000;
-        border-radius: 10px;
-    }
-
-    /* Botones */
-    .stButton > button {
-        background-color: #f4c430;
-        color: #000000;
-        font-weight: bold;
-        border-radius: 12px;
-        padding: 10px 24px;
-    }
-
-    .stButton > button:hover {
-        background-color: #d4a017;
-    }
-
-    /* Tarjetas visuales */
-    .card {
-        background-color: #FFFFFF;
-        color: #000000;
-        border-radius: 18px;
-        padding: 22px;
-        box-shadow: 0px 6px 18px rgba(0,0,0,0.18);
-        margin-bottom: 20px;
-    }
-    /* Labels de inputs (Selectbox, NumberInput, etc) */
-label {
+/* === LABELS DE INPUTS (ESTO ES LO IMPORTANTE) === */
+label[data-testid="stWidgetLabel"] {
     color: #0F3D1E !important;
-    font-weight: 600;
+    font-weight: 700;
 }
 
-/* Texto interno de selects */
+/* Contenedores de inputs */
+div[data-testid="stNumberInput"],
+div[data-testid="stSelectbox"],
+div[data-testid="stTextInput"] {
+    background-color: #FFFFFF;
+    border-radius: 14px;
+    padding: 6px;
+}
+
+/* Texto dentro de inputs */
+input, textarea {
+    background-color: #FFFFFF !important;
+    color: #000000 !important;
+    border-radius: 10px;
+}
+
+/* Texto dentro de selectbox */
 div[data-baseweb="select"] span {
+    color: #000000 !important;
+}
+
+/* Botones */
+.stButton > button {
+    background-color: #f4c430;
     color: #000000;
+    font-weight: bold;
+    border-radius: 14px;
+    padding: 10px 26px;
 }
 
-/* Placeholder y texto en inputs numéricos */
-input::placeholder {
-    color: #6b7280;
+.stButton > button:hover {
+    background-color: #d4a017;
 }
 
+/* Tarjetas tipo casino */
+.card {
+    background-color: #FFFFFF;
+    color: #000000;
+    border-radius: 18px;
+    padding: 22px;
+    box-shadow: 0px 8px 22px rgba(0,0,0,0.25);
+    margin-bottom: 20px;
+}
 
 </style>
 """, unsafe_allow_html=True)
+
 
 
 # ---------------- FUNCIONES AUXILIARES ----------------
