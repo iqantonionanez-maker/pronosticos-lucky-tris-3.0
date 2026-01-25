@@ -254,12 +254,6 @@ if seleccion and seleccion.isdigit():
         sorteos_sin_salir = df_modalidad["CONCURSO"].max() - ultimo_concurso
         promedio = total_sorteos / apariciones
 
-        if sorteos_sin_salir >= promedio * 1.2:
-            estado = "🔥 Caliente"
-        elif sorteos_sin_salir <= promedio * 0.8:
-            estado = "❄️ Frío"
-        else:
-            estado = "⚪ Promedio"
     else:
         ultima_fecha = None
         sorteos_sin_salir = None
