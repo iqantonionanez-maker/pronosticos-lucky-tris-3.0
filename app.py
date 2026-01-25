@@ -240,6 +240,9 @@ if seleccion and seleccion.isdigit():
 
         ultimo_concurso = df_modalidad["CONCURSO"].max()
 
+        ultimo_concurso_numero = data["CONCURSO"].max()
+sorteos_sin_salir = ultimo_concurso - ultimo_concurso_numero
+
         # Rangos de sorteos
         ult_100 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 100]
         ult_1000 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 1000]
@@ -277,6 +280,7 @@ if seleccion and seleccion.isdigit():
         st.write(f"• Últimos 100 sorteos: **{apar_100} veces**")
 
         st.write(f"**Promedio histórico:** {promedio} sorteos")
+st.write(f"**Sorteos sin salir:** {sorteos_sin_salir}")
 
         st.write("**Últimas 5 fechas en que salió:**")
         for f in ultimas_fechas:
