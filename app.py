@@ -19,7 +19,8 @@ No garantiza premios ni resultados._
 """)
 
 CSV_LOCAL = "Tris.csv"
-# ----------- ESTILOS VISUALES (PSICOLOGÍA DE COLORES) -----------
+
+# ----------- ESTILOS VISUALES (TEXTO NEGRO FORZADO) -----------
 st.markdown("""
 <style>
 
@@ -33,47 +34,28 @@ section[data-testid="stSidebar"] {
     background-color: #168a2c;
 }
 
-/* Títulos */
-h1, h2, h3, h4 {
-    color: #FFFFFF !important;
+/* FORZAR TODO TEXTO A NEGRO */
+* {
+    color: #000000 !important;
 }
 
-/* Texto normal */
-p, span, div {
-    color: #FFFFFF;
-}
-
-/* === LABELS DE INPUTS (ESTO ES LO IMPORTANTE) === */
-label[data-testid="stWidgetLabel"] {
-    color: #0F3D1E !important;
-    font-weight: 700;
-}
-
-/* Contenedores de inputs */
-div[data-testid="stNumberInput"],
-div[data-testid="stSelectbox"],
-div[data-testid="stTextInput"] {
-    background-color: #FFFFFF;
-    border-radius: 14px;
-    padding: 6px;
-}
-
-/* Texto dentro de inputs */
+/* Inputs */
 input, textarea {
     background-color: #FFFFFF !important;
     color: #000000 !important;
-    border-radius: 10px;
+    border-radius: 12px;
 }
 
-/* Texto dentro de selectbox */
-div[data-baseweb="select"] span {
-    color: #000000 !important;
+/* Selectbox */
+div[data-baseweb="select"] {
+    background-color: #FFFFFF;
+    border-radius: 12px;
 }
 
 /* Botones */
 .stButton > button {
     background-color: #f4c430;
-    color: #000000;
+    color: #000000 !important;
     font-weight: bold;
     border-radius: 14px;
     padding: 10px 26px;
@@ -83,14 +65,12 @@ div[data-baseweb="select"] span {
     background-color: #d4a017;
 }
 
-/* Tarjetas tipo casino */
+/* Tarjetas */
 .card {
     background-color: #FFFFFF;
-    color: #000000;
     border-radius: 18px;
     padding: 22px;
-    box-shadow: 0px 8px 22px rgba(0,0,0,0.25);
-    margin-bottom: 20px;
+    box-shadow: 0px 8px 20px rgba(0,0,0,0.25);
 }
 
 </style>
