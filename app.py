@@ -5,11 +5,14 @@ from datetime import date
 
 # ---------------- CONFIGURACIÓN GENERAL ----------------
 st.set_page_config(
+    page_title="Pronósticos Lucky – TRIS",
+    layout="wide"
+)
     # ----------- ESTILOS VISUALES (PSICOLOGÍA DE COLORES) -----------
 st.markdown("""
 <style>
     .stApp {
-        background-color: #0f172a; /* Azul oscuro: confianza y análisis */
+        background-color: #0f172a;
         color: #e5e7eb;
     }
     h1, h2, h3, h4 {
@@ -25,10 +28,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-    
-    page_title="Pronósticos Lucky – TRIS",
-    layout="wide"
-)
 
 st.title("🎲 Pronósticos Lucky – TRIS")
 st.write("Análisis estadístico basado únicamente en el histórico oficial del TRIS.")
