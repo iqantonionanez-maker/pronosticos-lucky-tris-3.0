@@ -20,64 +20,6 @@ No garantiza premios ni resultados._
 
 CSV_LOCAL = "Tris.csv"
 
-# ----------- ESTILOS VISUALES (TEXTO NEGRO FORZADO) -----------
-st.markdown("""
-<style>
-
-/* Fondo general */
-.stApp {
-    background-color: #1F9E35;
-}
-
-/* Sidebar */
-section[data-testid="stSidebar"] {
-    background-color: #168a2c;
-}
-
-/* FORZAR TODO TEXTO A NEGRO */
-* {
-    color: #000000 !important;
-}
-
-/* Inputs */
-input, textarea {
-    background-color: #FFFFFF !important;
-    color: #000000 !important;
-    border-radius: 12px;
-}
-
-/* Selectbox */
-div[data-baseweb="select"] {
-    background-color: #FFFFFF;
-    border-radius: 12px;
-}
-
-/* Botones */
-.stButton > button {
-    background-color: #f4c430;
-    color: #000000 !important;
-    font-weight: bold;
-    border-radius: 14px;
-    padding: 10px 26px;
-}
-
-.stButton > button:hover {
-    background-color: #d4a017;
-}
-
-/* Tarjetas */
-.card {
-    background-color: #FFFFFF;
-    border-radius: 18px;
-    padding: 22px;
-    box-shadow: 0px 8px 20px rgba(0,0,0,0.25);
-}
-
-</style>
-""", unsafe_allow_html=True)
-
-
-
 # ---------------- FUNCIONES AUXILIARES ----------------
 def cargar_local():
     df = pd.read_csv(CSV_LOCAL)
@@ -226,89 +168,39 @@ def extraer_valor(row):
 df["JUGADA"] = df.apply(extraer_valor, axis=1)
 df_modalidad = df.dropna(subset=["JUGADA"])
 
-# ================== ANÁLISIS PRINCIPAL ==================
+# ---------------- ANÁLISIS PRINCIPAL ----------------
+st.subheader("📊 Análisis estadístico")
 
-st.header("📊 Análisis principal")
+seleccion = st.text_input("Ingresa el número a analizar:")
 
-# Asegurar orden correcto
-df = df.sort_values("CONCURSO").reset_index(drop=True)
+if seleccion and seleccion.isdigit():
+    data = df_modalidad[df_modalidad["JUGADA"] == seleccion]
 
-ultimo_concurso = df["CONCURSO"].max()
+    apariciones = len(data)
 
-# Fechas en español
-dias = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
-meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
-         "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    if apariciones > 0:
+        ultima_fecha = data["FECHA"].max()
+        ultimo_concurso = data["CONCURSO"].max()
+        sorteos_sin_salir = df_modalidad["CONCURSO"].max() - ultimo_concurso
+        promedio = total_sorteos / apariciones
 
-def fecha_espanol(fecha):
-    return f"{dias[fecha.weekday()]} {fecha.day} de {meses[fecha.month - 1]} de {fecha.year}"
+        if sorteos_sin_salir >= promedio * 1.2:
+            estado = "🔥 Caliente"
+        elif sorteos_sin_salir <= promedio * 0.8:
+            estado = "❄️ Frío"
+        else:
+            estado = "⚪ Promedio"
+    else:
+        ultima_fecha = None
+        sorteos_sin_salir = None
+        promedio = None
+        estado = "Sin datos"
 
-# Selección de modalidad
-modalidades = {
-    "Directo": ["D1", "D2", "D3", "D4", "D5"],
-    "Par": ["D1", "D2"],
-    "Tercia": ["D1", "D2", "D3"]
-}
-
-modalidad = st.selectbox("🎯 Modalidad", list(modalidades.keys()))
-cols = modalidades[modalidad]
-
-# Crear columna del número según modalidad
-df_modalidad = df.copy()
-df_modalidad["NUMERO"] = df_modalidad[cols].astype(str).agg("".join, axis=1)
-
-# Selección del número
-numeros = sorted(df_modalidad["NUMERO"].unique())
-numero_sel = st.selectbox("🔢 Selecciona un número", numeros)
-
-df_num = df_modalidad[df_modalidad["NUMERO"] == numero_sel]
-
-# ------------------ APARICIONES ------------------
-total = len(df_num)
-ult_10000 = df_num[df_num["CONCURSO"] > ultimo_concurso - 10000].shape[0]
-ult_1000 = df_num[df_num["CONCURSO"] > ultimo_concurso - 1000].shape[0]
-ult_100 = df_num[df_num["CONCURSO"] > ultimo_concurso - 100].shape[0]
-
-st.subheader("📈 Apariciones")
-
-st.markdown(f"""
-- **Histórico total:** {total} veces  
-- **Últimos 10,000 sorteos:** {ult_10000} veces  
-- **Últimos 1,000 sorteos:** {ult_1000} veces  
-- **Últimos 100 sorteos:** {ult_100} veces  
-""")
-
-# ------------------ SORTEOS SIN SALIR ------------------
-st.subheader("⏳ Sorteos sin salir")
-
-if not df_num.empty:
-    ultimo_salida = df_num["CONCURSO"].max()
-    sorteos_sin_salir = ultimo_concurso - ultimo_salida
-
-    fecha_ultima = df_num[df_num["CONCURSO"] == ultimo_salida]["FECHA"].iloc[0]
-
-    st.markdown(f"""
-    - **Última vez que salió:** Concurso {ultimo_salida}  
-    - **Fecha:** {fecha_espanol(fecha_ultima)}  
-    - **Sorteos sin salir:** {sorteos_sin_salir}
-    """)
-else:
-    st.warning("Este número nunca ha salido en el histórico.")
-
-# ------------------ HISTORIAL RECIENTE ------------------
-st.subheader("🗓️ Últimas apariciones")
-
-if not df_num.empty:
-    ultimas = df_num.sort_values("CONCURSO", ascending=False).head(10)
-
-    tabla = ultimas[["CONCURSO", "FECHA"]].copy()
-    tabla["FECHA"] = tabla["FECHA"].apply(fecha_espanol)
-
-    st.dataframe(tabla, use_container_width=True)
-else:
-    st.info("Sin apariciones registradas.")
-
-
+    st.write(f"**Apariciones:** {apariciones}")
+    st.write(f"**Última vez:** {ultima_fecha.date() if ultima_fecha is not None else 'Nunca'}")
+    st.write(f"**Sorteos sin salir:** {sorteos_sin_salir if sorteos_sin_salir is not None else 'N/A'}")
+    st.write(f"**Promedio histórico:** {round(promedio, 2) if promedio else 'N/A'}")
+    st.write(f"**Clasificación:** {estado}")
 
 # ---------------- CÁLCULO DE PREMIOS ----------------
 st.subheader("💰 Cálculo de premio máximo posible")
