@@ -9,24 +9,34 @@ st.set_page_config(
     layout="wide"
 )
     # ----------- ESTILOS VISUALES (PSICOLOGÍA DE COLORES) -----------
+# ----------- ESTILOS VISUALES (PSICOLOGÍA DE COLORES) -----------
 st.markdown("""
 <style>
     .stApp {
-        background-color: #0f172a;
-        color: #e5e7eb;
+        background-color: #0f172a; /* Azul oscuro */
+        color: #ffffff;            /* TEXTO BLANCO */
     }
+
     h1, h2, h3, h4 {
-        color: #f8fafc;
+        color: #ffffff;
     }
-    .stMarkdown, .stText, .stWrite, label {
-        color: #e5e7eb;
+
+    .stMarkdown, .stText, .stWrite, label, p, span, div {
+        color: #ffffff;
     }
+
     input, textarea {
         background-color: #020617;
-        color: #e5e7eb;
+        color: #ffffff;
+    }
+
+    /* Selectbox y number input */
+    .stSelectbox div, .stNumberInput div {
+        color: #ffffff;
     }
 </style>
 """, unsafe_allow_html=True)
+
 
 
 st.title("🎲 Pronósticos Lucky – TRIS")
