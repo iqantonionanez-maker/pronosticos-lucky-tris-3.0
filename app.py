@@ -232,56 +232,55 @@ st.subheader("📊 Análisis estadístico")
 seleccion = st.text_input("Ingresa el número a analizar:")
 
 if seleccion and seleccion.isdigit():
-    data = df_modalidad[df_modalidad["JUGADA"] == seleccion]
 
+    data = df_modalidad[df_modalidad["JUGADA"] == seleccion]
     apariciones_total = len(data)
 
     if apariciones_total > 0:
+
         ultimo_concurso = df_modalidad["CONCURSO"].max()
 
-# Rangos de sorteos
-ultimo_concurso = df_modalidad["CONCURSO"].max()
+        # Rangos de sorteos
+        ult_100 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 100]
+        ult_1000 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 1000]
+        ult_10000 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 10000]
 
-ult_100 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 100]
-ult_1000 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 1000]
-ult_10000 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 10000]
+        apar_100 = len(ult_100[ult_100["JUGADA"] == seleccion])
+        apar_1000 = len(ult_1000[ult_1000["JUGADA"] == seleccion])
+        apar_10000 = len(ult_10000[ult_10000["JUGADA"] == seleccion])
 
-apar_100 = len(ult_100[ult_100["JUGADA"] == seleccion])
-apar_1000 = len(ult_1000[ult_1000["JUGADA"] == seleccion])
-apar_10000 = len(ult_10000[ult_10000["JUGADA"] == seleccion])
+        # Promedio redondeado
+        promedio = round(total_sorteos / apariciones_total)
 
-# Promedio redondeado
-promedio = round(total_sorteos / apariciones_total)
+        # Meses en español
+        meses_es = {
+            1: "ENE", 2: "FEB", 3: "MAR", 4: "ABR",
+            5: "MAY", 6: "JUN", 7: "JUL", 8: "AGO",
+            9: "SEP", 10: "OCT", 11: "NOV", 12: "DIC"
+        }
 
-# ---- FECHAS EN ESPAÑOL ----
-meses_es = {
-    1: "ENE", 2: "FEB", 3: "MAR", 4: "ABR",
-    5: "MAY", 6: "JUN", 7: "JUL", 8: "AGO",
-    9: "SEP", 10: "OCT", 11: "NOV", 12: "DIC"
-}
+        # Últimas 5 fechas
+        ultimas_fechas = []
+        for f in (
+            data.sort_values("FECHA", ascending=False)
+            .head(5)["FECHA"]
+        ):
+            ultimas_fechas.append(
+                f"{f.day:02d}-{meses_es[f.month]}-{str(f.year)[-2:]}"
+            )
 
-ultimas_fechas = []
-for f in (
-    data.sort_values("FECHA", ascending=False)
-    .head(5)["FECHA"]
-):
-    ultimas_fechas.append(
-        f"{f.day:02d}-{meses_es[f.month]}-{str(f.year)[-2:]}"
-    )
+        # Salida
+        st.write("**Apariciones del número:**")
+        st.write(f"• Histórico total: **{apariciones_total} veces**")
+        st.write(f"• Últimos 10,000 sorteos: **{apar_10000} veces**")
+        st.write(f"• Últimos 1,000 sorteos: **{apar_1000} veces**")
+        st.write(f"• Últimos 100 sorteos: **{apar_100} veces**")
 
-# ---- SALIDA EN PANTALLA ----
-st.write("**Apariciones del número:**")
-st.write(f"• Histórico total: **{apariciones_total} veces**")
-st.write(f"• Últimos 10,000 sorteos: **{apar_10000} veces**")
-st.write(f"• Últimos 1,000 sorteos: **{apar_1000} veces**")
-st.write(f"• Últimos 100 sorteos: **{apar_100} veces**")
+        st.write(f"**Promedio histórico:** {promedio} sorteos")
 
-st.write(f"**Promedio histórico:** {promedio} sorteos")
-
-st.write("**Últimas 5 fechas en que salió:**")
-for f in ultimas_fechas:
-    st.write(f"• {f}")
-
+        st.write("**Últimas 5 fechas en que salió:**")
+        for f in ultimas_fechas:
+            st.write(f"• {f}")
 
     else:
         st.warning("Este número no tiene apariciones en el histórico.")
