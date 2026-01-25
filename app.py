@@ -8,34 +8,62 @@ st.set_page_config(
     page_title="Pronósticos Lucky – TRIS",
     layout="wide"
 )
-    # ----------- ESTILOS VISUALES (PSICOLOGÍA DE COLORES) -----------
-# ----------- ESTILOS VISUALES (PSICOLOGÍA DE COLORES) -----------
+
+# ----------- ESTILOS VISUALES (SUERTE + VENTAS) -----------
 st.markdown("""
 <style>
+    /* Fondo general */
     .stApp {
-        background-color: #0f172a; /* Azul oscuro */
-        color: #ffffff;            /* TEXTO BLANCO */
+        background-color: #ecfdf5;  /* Verde muy claro (menta) */
+        color: #000000;             /* Texto negro */
     }
 
+    /* Títulos */
     h1, h2, h3, h4 {
-        color: #ffffff;
+        color: #000000;
     }
 
+    /* Texto general */
     .stMarkdown, .stText, .stWrite, label, p, span, div {
-        color: #ffffff;
+        color: #000000;
     }
 
+    /* Inputs */
     input, textarea {
-        background-color: #020617;
-        color: #ffffff;
+        background-color: #ffffff;
+        color: #000000;
+        border-radius: 6px;
     }
 
-    /* Selectbox y number input */
+    /* Selectbox y NumberInput */
     .stSelectbox div, .stNumberInput div {
-        color: #ffffff;
+        color: #000000;
+        background-color: #ffffff;
     }
+
+    /* Botones */
+    button {
+        background-color: #22c55e; /* Verde suerte */
+        color: #000000;
+        border-radius: 8px;
+        font-weight: bold;
+    }
+
+    /* Mensajes de éxito */
+    .stSuccess {
+        background-color: #bbf7d0;
+        color: #000000;
+    }
+
+    /* Mensajes de advertencia */
+    .stWarning {
+        background-color: #fef3c7;
+        color: #000000;
+    }
+
 </style>
 """, unsafe_allow_html=True)
+
 
 
 
