@@ -80,6 +80,22 @@ st.markdown("""
         box-shadow: 0px 6px 18px rgba(0,0,0,0.18);
         margin-bottom: 20px;
     }
+    /* Labels de inputs (Selectbox, NumberInput, etc) */
+label {
+    color: #0F3D1E !important;
+    font-weight: 600;
+}
+
+/* Texto interno de selects */
+div[data-baseweb="select"] span {
+    color: #000000;
+}
+
+/* Placeholder y texto en inputs numéricos */
+input::placeholder {
+    color: #6b7280;
+}
+
 
 </style>
 """, unsafe_allow_html=True)
