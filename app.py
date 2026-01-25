@@ -5,25 +5,30 @@ from datetime import date
 
 # ---------------- CONFIGURACIÓN GENERAL ----------------
 st.set_page_config(
-    page_title="Pronósticos Lucky – TRIS",
-    layout="wide"
-)
-
-# ----------- ESTILOS VISUALES (PSICOLOGÍA DE COLORES) -----------
+    # ----------- ESTILOS VISUALES (PSICOLOGÍA DE COLORES) -----------
 st.markdown("""
 <style>
     .stApp {
-        background-color: #0f172a;
+        background-color: #0f172a; /* Azul oscuro: confianza y análisis */
         color: #e5e7eb;
     }
     h1, h2, h3, h4 {
         color: #f8fafc;
     }
-    .stMarkdown, .stText, .stWrite {
+    .stMarkdown, .stText, .stWrite, label {
+        color: #e5e7eb;
+    }
+    input, textarea {
+        background-color: #020617;
         color: #e5e7eb;
     }
 </style>
 """, unsafe_allow_html=True)
+
+    
+    page_title="Pronósticos Lucky – TRIS",
+    layout="wide"
+)
 
 st.title("🎲 Pronósticos Lucky – TRIS")
 st.write("Análisis estadístico basado únicamente en el histórico oficial del TRIS.")
@@ -63,15 +68,79 @@ def normalizar_csv_externo(df):
         df["R5"] = df["Combinación Ganadora"].str[4].astype(int)
 
     df["NPRODUCTO"] = 60
-    df["Multiplicador"] = df.get("Multiplicador", "NO")
+    if "Multiplicador" in df.columns:
+        df["Multiplicador"] = df["Multiplicador"].str.upper().replace({"SÍ": "SI"})
+    else:
+        df["Multiplicador"] = "NO"
 
     return df[[
-        "NPRODUCTO", "CONCURSO",
+        "NPRODUCTO",
+        "CONCURSO",
         "R1", "R2", "R3", "R4", "R5",
-        "FECHA", "Multiplicador"
+        "FECHA",
+        "Multiplicador"
     ]]
 
-# ---------------- CARGA DE DATOS ----------------
+# ---------------- ACTUALIZACIÓN DEL HISTÓRICO ----------------
+with st.expander("🔄 Actualización del histórico", expanded=False):
+
+    df_local = cargar_local()
+    ultimo_concurso = df_local["CONCURSO"].max()
+    st.info(f"📄 Último concurso registrado: {ultimo_concurso}")
+
+    # ---- SUBIR CSV ----
+    st.markdown("### 📤 Actualizar desde archivo oficial")
+    archivo = st.file_uploader("Sube el CSV oficial del TRIS", type=["csv"])
+
+    if archivo is not None:
+        try:
+            df_nuevo = pd.read_csv(archivo)
+            df_nuevo = normalizar_csv_externo(df_nuevo)
+            nuevos = df_nuevo[df_nuevo["CONCURSO"] > ultimo_concurso]
+
+            if nuevos.empty:
+                st.warning("No hay sorteos nuevos en el archivo.")
+            else:
+                df_final = pd.concat([df_local, nuevos], ignore_index=True)
+                guardar(df_final)
+                st.success(f"✅ Se agregaron {len(nuevos)} sorteos nuevos.")
+                st.experimental_rerun()
+
+        except Exception as e:
+            st.error(f"Error al procesar el archivo: {e}")
+
+    # ---- CAPTURA MANUAL ----
+    st.markdown("### ✍️ Captura manual de sorteo")
+
+    with st.form("captura_manual"):
+        concurso_manual = ultimo_concurso + 1
+        numero = st.text_input("Número ganador (5 dígitos)")
+        multiplicador = st.selectbox("¿Salió multiplicador?", ["NO", "SI"])
+        fecha = st.date_input("Fecha del sorteo", value=date.today())
+        enviar = st.form_submit_button("Guardar sorteo")
+
+        if enviar:
+            if not numero.isdigit() or len(numero) != 5:
+                st.error("El número debe tener exactamente 5 dígitos.")
+            else:
+                nuevo = {
+                    "NPRODUCTO": 60,
+                    "CONCURSO": concurso_manual,
+                    "R1": int(numero[0]),
+                    "R2": int(numero[1]),
+                    "R3": int(numero[2]),
+                    "R4": int(numero[3]),
+                    "R5": int(numero[4]),
+                    "FECHA": fecha.strftime("%d/%m/%Y"),
+                    "Multiplicador": multiplicador
+                }
+
+                df_final = pd.concat([df_local, pd.DataFrame([nuevo])], ignore_index=True)
+                guardar(df_final)
+                st.success(f"✅ Sorteo {concurso_manual} agregado.")
+                st.experimental_rerun()
+
+# ---------------- CARGA DE DATOS ORIGINAL ----------------
 @st.cache_data
 def load_data():
     df = pd.read_csv(CSV_LOCAL)
@@ -97,21 +166,25 @@ modalidad = st.selectbox(
     ]
 )
 
+# ---------------- EXTRACCIÓN DE JUGADA ----------------
 def extraer_valor(row):
-    if modalidad == "Directa 5":
-        return f"{row.R1}{row.R2}{row.R3}{row.R4}{row.R5}"
-    if modalidad == "Directa 4":
-        return f"{row.R2}{row.R3}{row.R4}{row.R5}"
-    if modalidad == "Directa 3":
-        return f"{row.R3}{row.R4}{row.R5}"
-    if modalidad == "Par inicial":
-        return f"{row.R1}{row.R2}"
-    if modalidad == "Par final":
-        return f"{row.R4}{row.R5}"
-    if modalidad == "Número inicial":
-        return f"{row.R1}"
-    if modalidad == "Número final":
-        return f"{row.R5}"
+    try:
+        if modalidad == "Directa 5":
+            return f"{int(row.R1)}{int(row.R2)}{int(row.R3)}{int(row.R4)}{int(row.R5)}"
+        if modalidad == "Directa 4":
+            return f"{int(row.R2)}{int(row.R3)}{int(row.R4)}{int(row.R5)}"
+        if modalidad == "Directa 3":
+            return f"{int(row.R3)}{int(row.R4)}{int(row.R5)}"
+        if modalidad == "Par inicial":
+            return f"{int(row.R1)}{int(row.R2)}"
+        if modalidad == "Par final":
+            return f"{int(row.R4)}{int(row.R5)}"
+        if modalidad == "Número inicial":
+            return f"{int(row.R1)}"
+        if modalidad == "Número final":
+            return f"{int(row.R5)}"
+    except:
+        return None
 
 df["JUGADA"] = df.apply(extraer_valor, axis=1)
 df_modalidad = df.dropna(subset=["JUGADA"])
@@ -123,33 +196,131 @@ seleccion = st.text_input("Ingresa el número a analizar:")
 
 if seleccion and seleccion.isdigit():
     data = df_modalidad[df_modalidad["JUGADA"] == seleccion]
+
     apariciones = len(data)
 
     if apariciones > 0:
-        max_concurso = df_modalidad["CONCURSO"].max()
+        ultima_fecha = data["FECHA"].max()
+        ultimo_concurso = data["CONCURSO"].max()
+        sorteos_sin_salir = df_modalidad["CONCURSO"].max() - ultimo_concurso
+        promedio = total_sorteos / apariciones
 
-        def conteo_rango(n):
-            return len(data[data["CONCURSO"] > max_concurso - n])
-
-        ultimas_fechas = (
-            data.sort_values("FECHA", ascending=False)
-            .head(5)["FECHA"]
-            .dt.strftime("%d/%m/%Y")
-            .tolist()
-        )
-
-        st.markdown(f"""
-### 🔢 Frecuencia del número **{seleccion}**
-- Ha aparecido **{apariciones} veces** en todo el histórico  
-- **{conteo_rango(10000)} veces** en los últimos **10,000 sorteos**  
-- **{conteo_rango(1000)} veces** en los últimos **1,000 sorteos**  
-- **{conteo_rango(500)} veces** en los últimos **500 sorteos**  
-- **{conteo_rango(100)} veces** en los últimos **100 sorteos**
-""")
-
-        st.markdown("### 📅 Últimas 5 apariciones")
-        for f in ultimas_fechas:
-            st.write(f"• {f}")
-
+        if sorteos_sin_salir >= promedio * 1.2:
+            estado = "🔥 Caliente"
+        elif sorteos_sin_salir <= promedio * 0.8:
+            estado = "❄️ Frío"
+        else:
+            estado = "⚪ Promedio"
     else:
-        st.warning("Este número no ha salido en esta modalidad.")
+        ultima_fecha = None
+        sorteos_sin_salir = None
+        promedio = None
+        estado = "Sin datos"
+
+    st.write(f"**Apariciones:** {apariciones}")
+    st.write(f"**Última vez:** {ultima_fecha.date() if ultima_fecha is not None else 'Nunca'}")
+    st.write(f"**Sorteos sin salir:** {sorteos_sin_salir if sorteos_sin_salir is not None else 'N/A'}")
+    st.write(f"**Promedio histórico:** {round(promedio, 2) if promedio else 'N/A'}")
+    st.write(f"**Clasificación:** {estado}")
+
+# ---------------- CÁLCULO DE PREMIOS ----------------
+st.subheader("💰 Cálculo de premio máximo posible")
+
+apuesta = st.number_input("Monto de la apuesta ($)", min_value=1, step=1)
+multiplicador = st.number_input("Monto del multiplicador ($)", min_value=0, step=1)
+
+tabla_pagos = {
+    "Directa 5": {"base": 50000, "multi": 200000},
+    "Directa 4": {"base": 5000, "multi": 20000},
+    "Directa 3": {"base": 500, "multi": 2000},
+    "Par inicial": {"base": 50, "multi": 200},
+    "Par final": {"base": 50, "multi": 200},
+    "Número inicial": {"base": 5, "multi": 20},
+    "Número final": {"base": 5, "multi": 20}
+}
+
+if seleccion and seleccion.isdigit():
+    pago_base = tabla_pagos[modalidad]["base"] * apuesta
+    pago_multi = tabla_pagos[modalidad]["multi"] * multiplicador
+    total = pago_base + pago_multi
+
+    st.success("🎯 **Desglose de premios**")
+    st.write(f"**Modalidad:** {modalidad}")
+    st.write(f"**Número jugado:** {seleccion}")
+    st.write(f"**Premio base:** ${pago_base:,}")
+    st.write(f"**Premio por multiplicador:** ${pago_multi:,}")
+    st.write(f"### 🏆 **Premio total máximo posible:** ${total:,}")
+
+# ---------------- NÚMEROS SIMILARES ----------------
+st.subheader("🔄 Números similares")
+
+def generar_similares_inteligentes(num):
+    similares = []
+    largo = len(num)
+    digitos = list(num)
+
+    perms = set("".join(p) for p in permutations(digitos, largo))
+    perms.discard(num)
+
+    for p in perms:
+        if len(similares) < 5:
+            similares.append(p)
+
+    n = int(num)
+    if len(similares) < 5:
+        similares.append(str(n - 1).zfill(largo))
+    if len(similares) < 5:
+        similares.append(str(n + 1).zfill(largo))
+
+    if len(similares) < 5:
+        similares.append("0" + num)
+    if len(similares) < 5:
+        similares.append(num + "0")
+
+    return list(dict.fromkeys(similares))[:5]
+
+if seleccion and seleccion.isdigit():
+    similares = generar_similares_inteligentes(seleccion)
+    tabla = []
+
+    for s in similares:
+        d = df_modalidad[df_modalidad["JUGADA"] == s]
+        if len(d) > 0:
+            tabla.append({
+                "Número": s,
+                "Apariciones": len(d),
+                "Última fecha": d["FECHA"].max().date(),
+                "Sorteos sin salir": df_modalidad["CONCURSO"].max() - d["CONCURSO"].max(),
+                "Promedio": round(total_sorteos / len(d), 2)
+            })
+        else:
+            tabla.append({
+                "Número": s,
+                "Apariciones": 0,
+                "Última fecha": "Nunca",
+                "Sorteos sin salir": "N/A",
+                "Promedio": "N/A"
+            })
+
+    st.dataframe(pd.DataFrame(tabla))
+
+# ---------------- RECOMENDACIONES LUCKY ----------------
+st.subheader("🍀 Recomendaciones Lucky")
+
+ranking = []
+
+for j, g in df_modalidad.groupby("JUGADA"):
+    apar = len(g)
+    ult = g["CONCURSO"].max()
+    sin = df_modalidad["CONCURSO"].max() - ult
+    prom = total_sorteos / apar
+    score = sin / prom
+    ranking.append((j, score, sin, prom))
+
+ranking = sorted(ranking, key=lambda x: x[1], reverse=True)[:3]
+
+for r in ranking:
+    st.write(
+        f"🔹 **{r[0]}** — Históricamente aparece cada {int(r[3])} sorteos "
+        f"y actualmente lleva {r[2]} sin salir."
+    )
