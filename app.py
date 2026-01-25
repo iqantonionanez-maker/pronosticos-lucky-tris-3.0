@@ -239,40 +239,49 @@ if seleccion and seleccion.isdigit():
     if apariciones_total > 0:
         ultimo_concurso = df_modalidad["CONCURSO"].max()
 
-        # Rangos de sorteos
-        ult_100 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 100]
-        ult_1000 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 1000]
-        ult_10000 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 10000]
+# Rangos de sorteos
+ultimo_concurso = df_modalidad["CONCURSO"].max()
 
-        apar_100 = len(ult_100[ult_100["JUGADA"] == seleccion])
-        apar_1000 = len(ult_1000[ult_1000["JUGADA"] == seleccion])
-        apar_10000 = len(ult_10000[ult_10000["JUGADA"] == seleccion])
+ult_100 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 100]
+ult_1000 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 1000]
+ult_10000 = df_modalidad[df_modalidad["CONCURSO"] > ultimo_concurso - 10000]
 
-        # Promedio redondeado
-        promedio = round(total_sorteos / apariciones_total)
+apar_100 = len(ult_100[ult_100["JUGADA"] == seleccion])
+apar_1000 = len(ult_1000[ult_1000["JUGADA"] == seleccion])
+apar_10000 = len(ult_10000[ult_10000["JUGADA"] == seleccion])
 
-        # Últimas 5 fechas
-        ultimas_fechas = (
-            data.sort_values("FECHA", ascending=False)
-            .head(5)["FECHA"]
-            .dt.strftime("%d-%b-%y")
-            .str.upper()
-            .tolist()
-        )
+# Promedio redondeado
+promedio = round(total_sorteos / apariciones_total)
 
-        st.write(f"**Apariciones históricas:** {apariciones_total}")
-        st.write(
-            f"Este número ha aparecido **{apariciones_total} veces en el histórico**, "
-            f"**{apar_10000} veces en los últimos 10,000 sorteos**, "
-            f"**{apar_1000} veces en los últimos 1,000 sorteos** y "
-            f"**{apar_100} veces en los últimos 100 sorteos**."
-        )
+# ---- FECHAS EN ESPAÑOL ----
+meses_es = {
+    1: "ENE", 2: "FEB", 3: "MAR", 4: "ABR",
+    5: "MAY", 6: "JUN", 7: "JUL", 8: "AGO",
+    9: "SEP", 10: "OCT", 11: "NOV", 12: "DIC"
+}
 
-        st.write(f"**Promedio histórico:** {promedio} sorteos")
+ultimas_fechas = []
+for f in (
+    data.sort_values("FECHA", ascending=False)
+    .head(5)["FECHA"]
+):
+    ultimas_fechas.append(
+        f"{f.day:02d}-{meses_es[f.month]}-{str(f.year)[-2:]}"
+    )
 
-        st.write("**Últimas 5 fechas en que salió:**")
-        for f in ultimas_fechas:
-            st.write(f"• {f}")
+# ---- SALIDA EN PANTALLA ----
+st.write("**Apariciones del número:**")
+st.write(f"• Histórico total: **{apariciones_total} veces**")
+st.write(f"• Últimos 10,000 sorteos: **{apar_10000} veces**")
+st.write(f"• Últimos 1,000 sorteos: **{apar_1000} veces**")
+st.write(f"• Últimos 100 sorteos: **{apar_100} veces**")
+
+st.write(f"**Promedio histórico:** {promedio} sorteos")
+
+st.write("**Últimas 5 fechas en que salió:**")
+for f in ultimas_fechas:
+    st.write(f"• {f}")
+
 
     else:
         st.warning("Este número no tiene apariciones en el histórico.")
