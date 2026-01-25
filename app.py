@@ -19,6 +19,62 @@ No garantiza premios ni resultados._
 """)
 
 CSV_LOCAL = "Tris.csv"
+# ----------- ESTILOS VISUALES (TEXTO NEGRO FORZADO) -----------
+st.markdown("""
+<style>
+
+/* Fondo general */
+.stApp {
+    background-color: #1F9E35;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: #168a2c;
+}
+
+/* FORZAR TODO TEXTO A NEGRO */
+* {
+    color: #000000 !important;
+}
+
+/* Inputs */
+input, textarea {
+    background-color: #FFFFFF !important;
+    color: #000000 !important;
+    border-radius: 12px;
+}
+
+/* Selectbox */
+div[data-baseweb="select"] {
+    background-color: #FFFFFF;
+    border-radius: 12px;
+}
+
+/* Botones */
+.stButton > button {
+    background-color: #f4c430;
+    color: #000000 !important;
+    font-weight: bold;
+    border-radius: 14px;
+    padding: 10px 26px;
+}
+
+.stButton > button:hover {
+    background-color: #d4a017;
+}
+
+/* Tarjetas */
+.card {
+    background-color: #FFFFFF;
+    border-radius: 18px;
+    padding: 22px;
+    box-shadow: 0px 8px 20px rgba(0,0,0,0.25);
+}
+
+</style>
+""", unsafe_allow_html=True)
+
 
 # ---------------- FUNCIONES AUXILIARES ----------------
 def cargar_local():
