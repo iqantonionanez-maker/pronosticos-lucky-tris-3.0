@@ -266,11 +266,27 @@ if seleccion and seleccion.isdigit():
         promedio = None
         estado = "Sin datos"
 
-    st.write(f"**Apariciones:** {apariciones}")
-    st.write(f"**Última vez:** {ultima_fecha.date() if ultima_fecha is not None else 'Nunca'}")
-    st.write(f"**Sorteos sin salir:** {sorteos_sin_salir if sorteos_sin_salir is not None else 'N/A'}")
-    st.write(f"**Promedio histórico:** {round(promedio, 2) if promedio else 'N/A'}")
-    st.write(f"**Clasificación:** {estado}")
+# --- Apariciones por rangos ---
+ult_100 = df_modalidad.tail(100)
+ult_1000 = df_modalidad.tail(1000)
+ult_10000 = df_modalidad.tail(10000)
+
+a_100 = len(ult_100[ult_100["JUGADA"] == seleccion])
+a_1000 = len(ult_1000[ult_1000["JUGADA"] == seleccion])
+a_10000 = len(ult_10000[ult_10000["JUGADA"] == seleccion])
+
+st.markdown("### 📌 Apariciones históricas")
+st.write(f"• Histórico completo: **{apariciones}** veces")
+st.write(f"• Últimos 10,000 sorteos: **{a_10000}** veces")
+st.write(f"• Últimos 1,000 sorteos: **{a_1000}** veces")
+st.write(f"• Últimos 100 sorteos: **{a_100}** veces")
+
+st.markdown("### 📅 Comportamiento reciente")
+st.write(f"• Última vez: **{fecha_espanol(ultima_fecha)}**")
+st.write(f"• Sorteos sin salir: **{sorteos_sin_salir if sorteos_sin_salir is not None else 'N/A'}**")
+st.write(f"• Promedio histórico: **{round(promedio, 2) if promedio else 'N/A'}**")
+st.write(f"• Clasificación: **{estado}**")
+
 
 # ---------------- CÁLCULO DE PREMIOS ----------------
 st.subheader("💰 Cálculo de premio máximo posible")
