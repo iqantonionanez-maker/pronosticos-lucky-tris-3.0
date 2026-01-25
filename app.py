@@ -9,58 +9,49 @@ st.set_page_config(
     layout="wide"
 )
 
-# ----------- ESTILOS VISUALES (SUERTE + VENTAS) -----------
+# ----------- ESTILOS VISUALES (SUERTE + LEGIBILIDAD) -----------
 st.markdown("""
 <style>
-    /* Fondo general */
     .stApp {
-        background-color: #ecfdf5;  /* Verde muy claro (menta) */
-        color: #000000;             /* Texto negro */
+        background-color: #fff7ed;  /* Crema cálido */
+        color: #000000;
     }
 
-    /* Títulos */
     h1, h2, h3, h4 {
         color: #000000;
     }
 
-    /* Texto general */
     .stMarkdown, .stText, .stWrite, label, p, span, div {
         color: #000000;
     }
 
-    /* Inputs */
     input, textarea {
         background-color: #ffffff;
         color: #000000;
         border-radius: 6px;
     }
 
-    /* Selectbox y NumberInput */
     .stSelectbox div, .stNumberInput div {
-        color: #000000;
         background-color: #ffffff;
+        color: #000000;
     }
 
-    /* Botones */
     button {
-        background-color: #22c55e; /* Verde suerte */
+        background-color: #facc15; /* Dorado suerte */
         color: #000000;
         border-radius: 8px;
         font-weight: bold;
     }
 
-    /* Mensajes de éxito */
     .stSuccess {
-        background-color: #bbf7d0;
+        background-color: #fde68a;
         color: #000000;
     }
 
-    /* Mensajes de advertencia */
     .stWarning {
         background-color: #fef3c7;
         color: #000000;
     }
-
 </style>
 """, unsafe_allow_html=True)
 
