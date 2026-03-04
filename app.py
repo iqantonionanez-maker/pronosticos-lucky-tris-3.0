@@ -190,7 +190,7 @@ with st.expander("🔄 Actualización del histórico", expanded=False):
                 st.experimental_rerun()
 
 # ---------------- CARGA DE DATOS ORIGINAL ----------------
-@st.cache_data
+
 def load_data():
     df = pd.read_csv(CSV_LOCAL)
     df["FECHA"] = pd.to_datetime(df["FECHA"], format="%d/%m/%Y", errors="coerce")
