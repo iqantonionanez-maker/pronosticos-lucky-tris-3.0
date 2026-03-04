@@ -397,28 +397,28 @@ for r in ranking:
         f"🔹 **{r[0]}** — Históricamente aparece cada {int(r[3])} sorteos "
         f"y actualmente lleva {r[2]} sin salir."
     )
-# ---------------- CALIENTES Y FRÍOS DEL MES ----------------
-st.subheader("🔥❄️ Números calientes y fríos del mes por horario")
+# ---------------- CALIENTES Y FRÍOS (ÚLTIMOS 30 DÍAS) ----------------
+st.subheader("🔥❄️ Números calientes y fríos (últimos 30 días) por horario")
 
-# Obtener mes y año actual según el histórico
-mes_actual = df["FECHA"].dt.month.max()
-anio_actual = df["FECHA"].dt.year.max()
+# Fecha más reciente del histórico
+ultima_fecha = df["FECHA"].max()
 
-df_mes = df[
-    (df["FECHA"].dt.month == mes_actual) &
-    (df["FECHA"].dt.year == anio_actual)
-]
+# Calcular ventana de 30 días
+fecha_inicio = ultima_fecha - pd.Timedelta(days=30)
+
+df_30 = df[df["FECHA"] >= fecha_inicio]
 
 horario_seleccionado = st.selectbox(
     "Selecciona el horario:",
     ["MEDIODIA", "3PM", "EXTRA", "7PM", "CLASICO"]
 )
 
-df_horario = df_mes[df_mes["HORARIO"] == horario_seleccionado]
+df_horario = df_30[df_30["HORARIO"] == horario_seleccionado]
 
 if not df_horario.empty:
 
-    # Crear jugada completa (Directa 5)
+    df_horario = df_horario.copy()
+
     df_horario["JUGADA_COMPLETA"] = (
         df_horario["R1"].astype(str) +
         df_horario["R2"].astype(str) +
@@ -435,14 +435,14 @@ if not df_horario.empty:
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("### 🔥 5 Más Calientes del Mes")
+        st.markdown("### 🔥 5 Más Calientes (30 días)")
         for num, freq in calientes.items():
             st.write(f"{num} — {freq} veces")
 
     with col2:
-        st.markdown("### ❄️ 5 Más Fríos del Mes")
+        st.markdown("### ❄️ 5 Más Fríos (30 días)")
         for num, freq in frios.items():
             st.write(f"{num} — {freq} veces")
 
 else:
-    st.warning("No hay datos para ese horario en el mes actual.")
+    st.warning("No hay datos para ese horario en los últimos 30 días.")
