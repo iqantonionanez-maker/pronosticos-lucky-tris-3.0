@@ -419,15 +419,10 @@ if not df_horario.empty:
 
     df_horario = df_horario.copy()
 
-    df_horario["JUGADA_COMPLETA"] = (
-        df_horario["R1"].astype(str) +
-        df_horario["R2"].astype(str) +
-        df_horario["R3"].astype(str) +
-        df_horario["R4"].astype(str) +
-        df_horario["R5"].astype(str)
-    )
+    # Usar la misma lógica de modalidad seleccionada
+    df_horario["JUGADA_MODALIDAD"] = df_horario.apply(extraer_valor, axis=1)
 
-    conteo = df_horario["JUGADA_COMPLETA"].value_counts()
+    conteo = df_horario["JUGADA_MODALIDAD"].value_counts()
 
     calientes = conteo.head(5)
     frios = conteo.tail(5)
@@ -435,12 +430,12 @@ if not df_horario.empty:
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("### 🔥 5 Más Calientes (30 días)")
+        st.markdown(f"### 🔥 5 Más Calientes ({modalidad})")
         for num, freq in calientes.items():
             st.write(f"{num} — {freq} veces")
 
     with col2:
-        st.markdown("### ❄️ 5 Más Fríos (30 días)")
+        st.markdown(f"### ❄️ 5 Más Fríos ({modalidad})")
         for num, freq in frios.items():
             st.write(f"{num} — {freq} veces")
 
