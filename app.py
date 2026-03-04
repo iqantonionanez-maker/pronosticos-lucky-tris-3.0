@@ -190,10 +190,23 @@ with st.expander("🔄 Actualización del histórico", expanded=False):
                 st.experimental_rerun()
 
 # ---------------- CARGA DE DATOS ORIGINAL ----------------
+def asignar_horario(concurso):
+    resto = concurso % 5
 
+    if resto == 3:
+        return "MEDIODIA"
+    elif resto == 4:
+        return "3PM"
+    elif resto == 0:
+        return "EXTRA"
+    elif resto == 1:
+        return "7PM"
+    elif resto == 2:
+        return "CLASICO"
 def load_data():
     df = pd.read_csv(CSV_LOCAL)
     df["FECHA"] = pd.to_datetime(df["FECHA"], format="%d/%m/%Y", errors="coerce")
+    df["HORARIO"] = df["CONCURSO"].apply(asignar_horario)
     return df.sort_values("CONCURSO")
 
 df = load_data()
@@ -384,3 +397,52 @@ for r in ranking:
         f"🔹 **{r[0]}** — Históricamente aparece cada {int(r[3])} sorteos "
         f"y actualmente lleva {r[2]} sin salir."
     )
+# ---------------- CALIENTES Y FRÍOS DEL MES ----------------
+st.subheader("🔥❄️ Números calientes y fríos del mes por horario")
+
+# Obtener mes y año actual según el histórico
+mes_actual = df["FECHA"].dt.month.max()
+anio_actual = df["FECHA"].dt.year.max()
+
+df_mes = df[
+    (df["FECHA"].dt.month == mes_actual) &
+    (df["FECHA"].dt.year == anio_actual)
+]
+
+horario_seleccionado = st.selectbox(
+    "Selecciona el horario:",
+    ["MEDIODIA", "3PM", "EXTRA", "7PM", "CLASICO"]
+)
+
+df_horario = df_mes[df_mes["HORARIO"] == horario_seleccionado]
+
+if not df_horario.empty:
+
+    # Crear jugada completa (Directa 5)
+    df_horario["JUGADA_COMPLETA"] = (
+        df_horario["R1"].astype(str) +
+        df_horario["R2"].astype(str) +
+        df_horario["R3"].astype(str) +
+        df_horario["R4"].astype(str) +
+        df_horario["R5"].astype(str)
+    )
+
+    conteo = df_horario["JUGADA_COMPLETA"].value_counts()
+
+    calientes = conteo.head(5)
+    frios = conteo.tail(5)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### 🔥 5 Más Calientes del Mes")
+        for num, freq in calientes.items():
+            st.write(f"{num} — {freq} veces")
+
+    with col2:
+        st.markdown("### ❄️ 5 Más Fríos del Mes")
+        for num, freq in frios.items():
+            st.write(f"{num} — {freq} veces")
+
+else:
+    st.warning("No hay datos para ese horario en el mes actual.")
