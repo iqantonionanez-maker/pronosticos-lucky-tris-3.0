@@ -451,5 +451,6 @@ with col2:
 
     for num, sin in ranking_frios:
         st.write(f"{num} — {sin} sorteos sin salir")
+
 else:
     st.warning("No hay datos para ese horario en los últimos 30 días.")
