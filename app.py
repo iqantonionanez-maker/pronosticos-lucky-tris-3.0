@@ -439,7 +439,7 @@ for jugada, grupo in df_horario.groupby("JUGADA_MODALIDAD"):
 
 ranking_frios = sorted(ranking_frios, key=lambda x: x[1], reverse=True)[:5]
 
-    col1, col2 = st.columns(2)
+col1, col2 = st.columns(2)
 
     with col1:
         st.markdown(f"### 🔥 5 Más Calientes ({modalidad})")
