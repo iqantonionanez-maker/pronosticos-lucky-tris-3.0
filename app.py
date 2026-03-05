@@ -442,10 +442,16 @@ if not df_horario.empty:
 
     col1, col2 = st.columns(2)
 
-    with col1:
-        st.markdown(f"### 🔥 5 Más Calientes ({modalidad})")
-        for num, freq in calientes.items():
-            st.write(f"{num} — {freq} veces")
+   with col1:
+    st.markdown(f"### 🔥 5 Más Calientes ({modalidad})")
+
+    for num, freq in calientes.items():
+
+        fechas = df_horario[df_horario["JUGADA_MODALIDAD"] == num]["FECHA"]
+        fechas = fechas.dt.strftime("%d/%m").tolist()
+
+        st.write(f"{num} — {freq} veces")
+        st.caption("Fechas: " + ", ".join(fechas))
 
     with col2:
         st.markdown(f"### ❄️ 5 Más Fríos ({modalidad})")
@@ -454,3 +460,96 @@ if not df_horario.empty:
 
 else:
     st.warning("No hay datos para ese horario en los últimos 30 días.")
+
+# ---------------- CALIENTES POR CASILLERO ----------------
+st.subheader("🔥 Frecuencia por casillero (últimos 30 días)")
+
+ultima_fecha = df["FECHA"].max()
+fecha_inicio = ultima_fecha - pd.Timedelta(days=30)
+
+df_30 = df[df["FECHA"] >= fecha_inicio]
+
+horario_pos = st.selectbox(
+    "Selecciona horario para analizar casilleros",
+    ["MEDIODIA", "3PM", "EXTRA", "7PM", "CLASICO"]
+)
+
+df_pos = df_30[df_30["HORARIO"] == horario_pos]
+
+if not df_pos.empty:
+
+    posiciones = {
+        "Decena de millar": "R1",
+        "Unidad de millar": "R2",
+        "Centenas": "R3",
+        "Decenas": "R4",
+        "Unidades": "R5"
+    }
+
+    for nombre, col in posiciones.items():
+
+        conteo = df_pos[col].value_counts()
+
+        caliente = conteo.idxmax()
+        freq = conteo.max()
+
+        frio = conteo.idxmin()
+
+        st.write(
+            f"**{nombre}** → 🔥 Más frecuente: **{caliente}** ({freq} veces) | ❄️ Más frío: **{frio}**"
+        )
+
+else:
+    st.warning("No hay datos suficientes para ese horario.")
+    
+# ---------------- DETECTOR DE RACHAS ----------------
+st.subheader("📈 Detector de rachas (últimos 20 sorteos)")
+
+ultimos = df.sort_values("CONCURSO", ascending=False).head(20)
+
+conteo = {}
+
+for _, fila in ultimos.iterrows():
+
+    digitos = [
+        str(fila["R1"]),
+        str(fila["R2"]),
+        str(fila["R3"]),
+        str(fila["R4"]),
+        str(fila["R5"])
+    ]
+
+    for d in digitos:
+        conteo[d] = conteo.get(d, 0) + 1
+
+ranking = sorted(conteo.items(), key=lambda x: x[1], reverse=True)
+
+for num, veces in ranking[:5]:
+    st.write(f"🔹 Dígito **{num}** apareció **{veces} veces** en los últimos 20 sorteos")
+
+# ---------------- PIRÁMIDE DEL DÍA ----------------
+st.subheader("🔺 Pirámide del día")
+
+hoy = pd.Timestamp.today()
+
+fecha_str = hoy.strftime("%d%m%Y")
+
+st.write(f"Fecha usada: **{fecha_str}**")
+
+fila = [int(x) for x in fecha_str]
+
+piramide = [fila]
+
+while len(fila) > 1:
+
+    nueva = []
+
+    for i in range(len(fila) - 1):
+        suma = (fila[i] + fila[i+1]) % 10
+        nueva.append(suma)
+
+    piramide.append(nueva)
+    fila = nueva
+
+for nivel in piramide:
+    st.write(" ".join(str(n) for n in nivel))
