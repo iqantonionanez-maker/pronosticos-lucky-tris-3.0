@@ -425,32 +425,32 @@ if not df_horario.empty:
     conteo = df_horario["JUGADA_MODALIDAD"].value_counts()
 
     calientes = conteo.head(5)
+
     # ❄️ Fríos por sorteos sin salir
-ultimo_concurso_horario = df_horario["CONCURSO"].max()
+    ultimo_concurso_horario = df_horario["CONCURSO"].max()
 
-ranking_frios = []
+    ranking_frios = []
 
-for jugada, grupo in df_horario.groupby("JUGADA_MODALIDAD"):
+    for jugada, grupo in df_horario.groupby("JUGADA_MODALIDAD"):
 
-    ultimo = grupo["CONCURSO"].max()
-    sin_salir = ultimo_concurso_horario - ultimo
+        ultimo = grupo["CONCURSO"].max()
+        sin_salir = ultimo_concurso_horario - ultimo
 
-    ranking_frios.append((jugada, sin_salir))
+        ranking_frios.append((jugada, sin_salir))
 
-ranking_frios = sorted(ranking_frios, key=lambda x: x[1], reverse=True)[:5]
+    ranking_frios = sorted(ranking_frios, key=lambda x: x[1], reverse=True)[:5]
 
-col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2)
 
-with col1:
+    with col1:
         st.markdown(f"### 🔥 5 Más Calientes ({modalidad})")
         for num, freq in calientes.items():
             st.write(f"{num} — {freq} veces")
 
-with col2:
-    st.markdown(f"### ❄️ 5 Más Fríos ({modalidad})")
-
-    for num, sin in ranking_frios:
-        st.write(f"{num} — {sin} sorteos sin salir")
+    with col2:
+        st.markdown(f"### ❄️ 5 Más Fríos ({modalidad})")
+        for num, sin in ranking_frios:
+            st.write(f"{num} — {sin} sorteos sin salir")
 
 else:
     st.warning("No hay datos para ese horario en los últimos 30 días.")
