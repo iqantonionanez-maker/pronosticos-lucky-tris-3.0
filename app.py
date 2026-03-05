@@ -400,10 +400,7 @@ for r in ranking:
 # ---------------- CALIENTES Y FRÍOS (ÚLTIMOS 30 DÍAS) ----------------
 st.subheader("🔥❄️ Números calientes y fríos (últimos 30 días) por horario")
 
-# Fecha más reciente del histórico
 ultima_fecha = df["FECHA"].max()
-
-# Calcular ventana de 30 días
 fecha_inicio = ultima_fecha - pd.Timedelta(days=30)
 
 df_30 = df[df["FECHA"] >= fecha_inicio]
@@ -418,43 +415,46 @@ df_horario = df_30[df_30["HORARIO"] == horario_seleccionado]
 if not df_horario.empty:
 
     df_horario = df_horario.copy()
-
-    # Usar la misma lógica de modalidad seleccionada
     df_horario["JUGADA_MODALIDAD"] = df_horario.apply(extraer_valor, axis=1)
 
     conteo = df_horario["JUGADA_MODALIDAD"].value_counts()
-
     calientes = conteo.head(5)
 
-    # ❄️ Fríos por sorteos sin salir
     ultimo_concurso_horario = df_horario["CONCURSO"].max()
 
     ranking_frios = []
 
     for jugada, grupo in df_horario.groupby("JUGADA_MODALIDAD"):
-
         ultimo = grupo["CONCURSO"].max()
         sin_salir = ultimo_concurso_horario - ultimo
-
         ranking_frios.append((jugada, sin_salir))
 
     ranking_frios = sorted(ranking_frios, key=lambda x: x[1], reverse=True)[:5]
 
     col1, col2 = st.columns(2)
 
-   with col1:
-    st.markdown(f"### 🔥 5 Más Calientes ({modalidad})")
+    with col1:
 
-    for num, freq in calientes.items():
+        st.markdown(f"### 🔥 5 Más Calientes ({modalidad})")
 
-        fechas = df_horario[df_horario["JUGADA_MODALIDAD"] == num]["FECHA"]
-        fechas = fechas.dt.strftime("%d/%m").tolist()
+        for num, freq in calientes.items():
 
-        st.write(f"{num} — {freq} veces")
-        st.caption("Fechas: " + ", ".join(fechas))
+            datos_num = df_horario[df_horario["JUGADA_MODALIDAD"] == num]
+
+            fechas = datos_num["FECHA"].dt.strftime("%d/%m").tolist()
+
+            ultimo = datos_num["CONCURSO"].max()
+
+            sin_salir = ultimo_concurso_horario - ultimo
+
+            st.write(f"{num} — {freq} veces")
+            st.caption("Fechas: " + ", ".join(fechas))
+            st.caption(f"Sorteos sin salir: {sin_salir}")
 
     with col2:
+
         st.markdown(f"### ❄️ 5 Más Fríos ({modalidad})")
+
         for num, sin in ranking_frios:
             st.write(f"{num} — {sin} sorteos sin salir")
 
