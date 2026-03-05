@@ -441,12 +441,12 @@ ranking_frios = sorted(ranking_frios, key=lambda x: x[1], reverse=True)[:5]
 
 col1, col2 = st.columns(2)
 
-    with col1:
+with col1:
         st.markdown(f"### 🔥 5 Más Calientes ({modalidad})")
         for num, freq in calientes.items():
             st.write(f"{num} — {freq} veces")
 
-  with col2:
+with col2:
     st.markdown(f"### ❄️ 5 Más Fríos ({modalidad})")
 
     for num, sin in ranking_frios:
