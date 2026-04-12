@@ -397,6 +397,64 @@ for r in ranking:
         f"🔹 **{r[0]}** — Históricamente aparece cada {int(r[3])} sorteos "
         f"y actualmente lleva {r[2]} sin salir."
     )
+    # ---------------- CALIENTES Y FRÍOS GLOBAL (30 DÍAS) ----------------
+st.subheader("🔥❄️ Números calientes y fríos (últimos 30 días - global)")
+
+ultima_fecha = df["FECHA"].max()
+fecha_inicio = ultima_fecha - pd.Timedelta(days=30)
+
+df_30_global = df[df["FECHA"] >= fecha_inicio].copy()
+
+# Aplicar modalidad seleccionada
+df_30_global["JUGADA_MODALIDAD"] = df_30_global.apply(extraer_valor, axis=1)
+
+df_30_global = df_30_global.dropna(subset=["JUGADA_MODALIDAD"])
+
+if not df_30_global.empty:
+
+    conteo = df_30_global["JUGADA_MODALIDAD"].value_counts()
+
+    # 🔥 CALIENTES
+    calientes = conteo.head(5)
+
+    # ❄️ FRÍOS (basado en atraso)
+    ultimo_concurso_global = df_30_global["CONCURSO"].max()
+
+    ranking_frios = []
+
+    for jugada, grupo in df_30_global.groupby("JUGADA_MODALIDAD"):
+        ultimo = grupo["CONCURSO"].max()
+        sin_salir = ultimo_concurso_global - ultimo
+        ranking_frios.append((jugada, sin_salir))
+
+    ranking_frios = sorted(ranking_frios, key=lambda x: x[1], reverse=True)[:5]
+
+    col1, col2 = st.columns(2)
+
+    # 🔥 CALIENTES
+    with col1:
+        st.markdown(f"### 🔥 5 Más Calientes ({modalidad})")
+
+        for num, freq in calientes.items():
+            datos_num = df_30_global[df_30_global["JUGADA_MODALIDAD"] == num]
+            fechas = datos_num["FECHA"].dt.strftime("%d/%m").tolist()
+
+            ultimo = datos_num["CONCURSO"].max()
+            sin_salir = ultimo_concurso_global - ultimo
+
+            st.write(f"{num} — {freq} veces")
+            st.caption("Fechas: " + ", ".join(fechas))
+            st.caption(f"Sorteos sin salir: {sin_salir}")
+
+    # ❄️ FRÍOS
+    with col2:
+        st.markdown(f"### ❄️ 5 Más Fríos ({modalidad})")
+
+        for num, sin in ranking_frios:
+            st.write(f"{num} — {sin} sorteos sin salir")
+
+else:
+    st.warning("No hay datos suficientes en los últimos 30 días.")
 # ---------------- CALIENTES Y FRÍOS (ÚLTIMOS 30 DÍAS) ----------------
 st.subheader("🔥❄️ Números calientes y fríos (últimos 30 días) por horario")
 
